@@ -174,7 +174,7 @@ export function chunkText(text, size = 1200, overlap = 150) {
   return chunks.filter(Boolean).slice(0, 2000)
 }
 
-function chunkStatements(documentId, content, ownerId) {
+export function chunkStatements(documentId, content, ownerId) {
   const st = [[`DELETE FROM doc_chunks WHERE document_id = $1`, [documentId]]]
   chunkText(content).forEach((c, i) => st.push([
     `INSERT INTO doc_chunks (document_id, owner_id, chunk_index, content) VALUES ($1, $2, $3, $4)`,

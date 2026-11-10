@@ -17,6 +17,9 @@
 //   POST   /api/files/:id/complete      {text?, title?, extract, pages?} 上傳完成、寫入知識庫
 //   GET    /api/files/:id/download[?inline=1]  → {url}（presigned GET，5 分鐘）
 //   DELETE /api/files/:id
+//   GET    /api/embeddings/status       PUT /api/embeddings/config {provider_id, model}   POST /api/embeddings/backfill
+//   GET    /api/admin/keys              POST /api/admin/rekey（金鑰輪替後重新加密）
+//   GET    /api/backup[?table=&cursor=] 分頁匯出   POST /api/backup/restore {table, rows}
 //   POST   /api/memories/suggest       {messages, provider_id, model} → 建議（不寫入）
 import { errorJson, json } from './config.js'
 import { requireAuth } from './auth.js'
@@ -24,7 +27,7 @@ import { bodyErrorMessage, readJsonBody } from './body.js'
 import { getDb } from './db.js'
 import { fetchWithTimeout, modelsUrl, upstreamHeaders } from './providers.js'
 import {
-  createProvider, deleteProvider, groupedModels, listProviders, providerCredentials, setProviderModels, updateProvider,
+  createProvider, deleteProvider, keyStatus, rekeyProviders, groupedModels, listProviders, providerCredentials, setProviderModels, updateProvider,
 } from './repo/providers.js'
 import {
   ENTITIES, createEntity, deleteEntity, getEntity, getProfile, getSettings, listEntities, putProfile, putSettings,
@@ -36,6 +39,8 @@ import {
 import { completeFile, createPendingFile, deleteFile, getFile, listFiles, maxUploadBytes } from './repo/files.js'
 import { createStorage } from './storage.js'
 import { handleMemorySuggest } from './memory_suggest.js'
+import { backfillEmbeddings, embeddingStatus, hybridSearch, setEmbeddingConfig } from './embeddings.js'
+import { BACKUP_FORMAT, BACKUP_VERSION, TABLE_ORDER, exportPage, restoreRows } from './backup.js'
 
 const ID = '([A-Za-z0-9_-]{1,100})'
 const KINDS = Object.keys(ENTITIES).join('|')
@@ -106,10 +111,30 @@ const ROUTES = [
     return r ? json(r) : errorJson('找不到對話', 404, 'not_found')
   }],
 
-  ['GET', /^\/api\/documents\/search$/, async ({ db, url }) => json({
+  ['GET', /^\/api\/documents\/search$/, async ({ db, env, url }) => json({
     ok: true,
-    results: await searchDocuments(db, url.searchParams.get('q'), { projectId: url.searchParams.get('project_id') || undefined }),
+    ...(await hybridSearch(db, env, url.searchParams.get('q'), { projectId: url.searchParams.get('project_id') || undefined })),
   })],
+  // 語意檢索（第五階段）
+  ['GET', /^\/api\/embeddings\/status$/, async ({ db }) => json({ ok: true, status: await embeddingStatus(db) })],
+  ['PUT', /^\/api\/embeddings\/config$/, async ({ db, env, body }) => {
+    const config = await setEmbeddingConfig(db, env, body)
+    return json({ ok: true, config, status: await embeddingStatus(db) })
+  }],
+  ['POST', /^\/api\/embeddings\/backfill$/, async ({ db, env, request }) => json({ ok: true, ...(await backfillEmbeddings(db, env, { signal: request.signal })) })],
+  // 金鑰輪替
+  ['GET', /^\/api\/admin\/keys$/, async ({ db, env }) => json({ ok: true, keys: await keyStatus(db, env) })],
+  ['POST', /^\/api\/admin\/rekey$/, async ({ db, env }) => {
+    const r = await rekeyProviders(db, env)
+    return json({ ok: true, ...r, keys: await keyStatus(db, env) })
+  }],
+  // 備份
+  ['GET', /^\/api\/backup$/, async ({ db, url }) => {
+    const table = url.searchParams.get('table')
+    if (!table) return json({ ok: true, format: BACKUP_FORMAT, version: BACKUP_VERSION, tables: TABLE_ORDER })
+    return json({ ok: true, ...(await exportPage(db, table, url.searchParams.get('cursor'))) })
+  }],
+  ['POST', /^\/api\/backup\/restore$/, async ({ db, body }) => json({ ok: true, ...(await restoreRows(db, String(body.table || ''), body.rows)) })],
   ['GET', new RegExp(`^/api/(${KINDS})$`), async ({ db, url, m }) => json({
     ok: true,
     items: await listEntities(db, m[1], {

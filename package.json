@@ -14,7 +14,8 @@
     "test": "node --test test/*.test.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:import-d1": "node scripts/import-d1.mjs",
-    "gen:key": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
+    "gen:key": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
+    "db:rekey": "node scripts/rekey.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0"

@@ -1,4 +1,4 @@
-import { decryptSecret, encryptSecret, keyHint } from '../crypto.js'
+import { decryptSecret, encryptSecret, keyHint, keyring } from '../crypto.js'
 import { BUILTIN_GROQ_ID, builtinProvider, normalizeBaseUrl, providerFromBody } from '../providers.js'
 
 export const OWNER = 'owner'
@@ -194,4 +194,44 @@ export async function resolveChatProvider(db, body, env, ownerId = OWNER) {
     return { ...cred, model }
   }
   return providerFromBody(body, env)
+}
+
+// ── 金鑰輪替（第五階段）──────────────────────────────────────
+// 步驟：1) 新金鑰放 ENCRYPTION_KEY、KEY_VERSION 改新版本；舊金鑰放 ENCRYPTION_KEY_PREVIOUS、KEY_VERSION_PREVIOUS。
+//       2) 部署後執行重新加密（設定頁按鈕或 npm run db:rekey）。3) keyStatus 顯示全部為新版本後，移除 PREVIOUS 變數。
+export async function keyStatus(db, env, ownerId = OWNER) {
+  const { current, ring } = keyring(env)
+  const rows = await db.query(
+    `SELECT COALESCE(key_version, split_part(api_key_enc, '.', 1)) AS version, count(*)::int AS n
+       FROM providers WHERE owner_id = $1 AND deleted_at IS NULL AND api_key_enc IS NOT NULL GROUP BY 1 ORDER BY 1`, [ownerId])
+  const versions = Object.fromEntries(rows.map((r) => [r.version, r.n]))
+  const outdated = rows.filter((r) => r.version !== current).reduce((a, r) => a + r.n, 0)
+  return {
+    current, configured: !!ring[current], previous_configured: Object.keys(ring).length > 1,
+    versions, outdated, unreadable: rows.filter((r) => !ring[r.version]).map((r) => r.version),
+  }
+}
+
+export async function rekeyProviders(db, env, ownerId = OWNER) {
+  const { current, ring } = keyring(env)
+  if (!ring[current]) throw new Error('伺服器未設定 ENCRYPTION_KEY')
+  const rows = await db.query(
+    `SELECT id, api_key_enc FROM providers
+      WHERE owner_id = $1 AND api_key_enc IS NOT NULL AND split_part(api_key_enc, '.', 1) <> $2`, [ownerId, current])
+  const statements = []
+  const failed = []
+  for (const row of rows) {
+    try {
+      const plain = await decryptSecret(row.api_key_enc, aadFor(ownerId, row.id), env)
+      const enc = await encryptSecret(plain, aadFor(ownerId, row.id), env)
+      statements.push([
+        `UPDATE providers SET api_key_enc = $1, key_version = $2 WHERE id = $3 AND owner_id = $4 AND api_key_enc = $5`,
+        [enc.value, enc.version, row.id, ownerId, row.api_key_enc],
+      ])
+    } catch (err) {
+      failed.push({ id: row.id, error: String(err.message || err).slice(0, 200) })
+    }
+  }
+  if (statements.length) await db.tx(statements)
+  return { rekeyed: statements.length, failed, current }
 }

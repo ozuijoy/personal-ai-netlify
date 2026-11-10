@@ -1,6 +1,6 @@
 # Personal AI — Netlify + Neon 移植架構
 
-> 狀態：第一至四階段（後端基礎、前端改為伺服器為主、檔案上傳、技能與記憶）已在本機完成，未部署、未推送。平台限制皆引自官方文件（2026-11-10 查閱），連結附於各節。
+> 狀態：第一至五階段（後端基礎、前端改為伺服器為主、檔案上傳、技能與記憶、語意檢索／金鑰輪替／備份）已在本機完成，未部署、未推送。平台限制皆引自官方文件（2026-11-10 查閱），連結附於各節。
 
 ## 0. 總覽
 
@@ -153,6 +153,24 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 - 設定：「在對話中使用技能」「在對話中使用記憶」「回覆後建議可記住的事」三個開關，會同步到伺服器 settings。回覆下方顯示「已套用技能：…」。
 - 成本：建議每次多一次模型呼叫（用使用者自己的 Key）；放在 Edge，等待時間不計 Netlify compute。
 
+## 3.5 語意檢索、金鑰輪替、備份（第五階段，已完成）
+
+**語意檢索（`src/embeddings.js`、`db/migrations/0002_vectors.sql`）**
+- `doc_chunks` 加 `embedding vector`（不限維度）與 `embedding_model`。換嵌入模型不必改 schema，查詢只比對同模型、同維度的向量。代價是不能建 HNSW 索引；個人規模（數萬段以內）順序掃描即可，日後可改固定維度並加 HNSW。
+- 嵌入模型由使用者選擇（任一 OpenAI 相容 `/embeddings`，例如 text-embedding-3-small；Groq 沒有嵌入 API），存在 settings `embedding`，儲存時先實測一次並記下維度。未設定時維持純關鍵字。
+- 補向量：`POST /api/embeddings/backfill` 每次最多處理約 40 秒（避開 Function 60 秒上限），前端迴圈呼叫；啟動時、上傳完成後、還原後會在背景自動補。文件內容更新會重新切塊，舊向量自然清除。
+- 檢索：關鍵字前 20 名與向量前 20 名（相似度 ≥ 0.2）以 RRF（k = 60）合併。嵌入 API 失敗時自動退回關鍵字，回應帶 `vector_error`。
+- 成本：每次知識庫檢索多一次嵌入呼叫（使用者自己的 Key）；在 Function 內執行，多數百毫秒 compute。
+
+**金鑰輪替（`src/repo/providers.js`）**
+- 新金鑰設 `ENCRYPTION_KEY`＋`KEY_VERSION`，舊金鑰設 `ENCRYPTION_KEY_PREVIOUS`＋`KEY_VERSION_PREVIOUS`，部署後在「資料控制 → API Key 加密金鑰」按「重新加密」或執行 `npm run db:rekey`。全部顯示新版本後再移除舊變數。
+- 解不開的列（缺舊金鑰）會回報失敗、不動資料。以 `WHERE api_key_enc = 舊值` 做樂觀鎖，避免覆蓋同時間的更新。
+
+**備份（`src/backup.js`）**
+- `GET /api/backup?table=&cursor=` 依資料表分頁匯出，每頁 ≤ 約 3.5 MB（Function 緩衝回應上限 6 MB）；前端組成一個 `.json` 檔下載。
+- 不含：API Key 密文、`doc_chunks`（還原時重新切塊）、上傳檔案本體（只含中繼資料）、登入紀錄。還原後供應商需重新輸入 Key。
+- `POST /api/backup/restore {table, rows}`：以 `jsonb_populate_recordset` 寫入，相同 id 覆寫，其他資料保留；可重複執行。子表只接受自己名下的父列；找不到的 `project_id`、`file_id` 改為 NULL。
+
 ## 4. 前端改動範圍（第二階段）
 
 前端是單檔 `src/web_decoded.html`（約 31 萬字元），localStorage 鍵約 30 個。策略：**伺服器為主、localStorage 只當快取與離線暫存**，新增一個 `api` 小模組集中所有請求。
@@ -206,7 +224,7 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 | 2 前端改為伺服器為主 | 伺服器儲存層取代 D1 同步、供應商設定頁（Key 加密存伺服器、可留空、可清除）、分組模型選單、聊天送 `provider_id`、知識庫改伺服器檢索、舊瀏覽器資料與 Key 自動上傳 | **完成（本機）**；首次部署待你同意 |
 | 3 檔案 | Neon Object Storage bucket＋CORS、presigned 上傳、pdf.js／mammoth 抽文字、專案檔案 | **完成（本機）**；bucket 與 CORS 部署時建立 |
 | 4 技能與 Memory | 設定頁、技能注入系統提示（always／keyword／手動）、對話後建議寫入 Memory（需使用者確認） | **完成（本機）** |
-| 5 強化 | pgvector 混合檢索、金鑰重加密腳本、匯出備份 | |
+| 5 強化 | pgvector 混合檢索、金鑰重加密腳本、匯出備份 | **完成（本機）** |
 
 ### 免費額度風險
 
