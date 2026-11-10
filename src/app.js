@@ -23,6 +23,7 @@ import { htmlResponse } from './html_shell.js'
 import { applySecurityHeaders, previewFrameResponse, sameOriginRequest } from './security.js'
 import { bodyErrorMessage, readFormBody, readJsonBody } from './body.js'
 import { handleChat } from './chat.js'
+import { chatContextLoader } from './repo/context.js'
 import { handleImageRequest } from './images.js'
 import { TOOLS, runTool } from './tools/registry.js'
 import { DEFAULT_GROQ_MODEL, fetchWithTimeout, modelsUrl, providerFromBody, upstreamHeaders } from './providers.js'
@@ -94,7 +95,10 @@ async function apiRoute(request, env, path, method) {
   if (path === '/api/chat') {
     if (method !== 'POST') return errorJson('Method not allowed', 405)
     if (!(await requireAuth(request, env))) return errorJson('請先登入', 401, 'unauthorized')
-    return handleChat(request, env, { resolveProvider: (body, e) => resolveChatProvider(getDb(e), body, e) })
+    return handleChat(request, env, {
+      resolveProvider: (body, e) => resolveChatProvider(getDb(e), body, e),
+      loadContext: getDb(env) ? chatContextLoader(getDb(env)) : undefined,
+    })
   }
   if (path === '/api/image') {
     if (!['GET', 'POST'].includes(method)) return errorJson('Method not allowed', 405)

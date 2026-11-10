@@ -1,6 +1,6 @@
 # Personal AI — Netlify + Neon 移植架構
 
-> 狀態：第一至三階段（後端基礎、前端改為伺服器為主、檔案上傳）已在本機完成，未部署、未推送。平台限制皆引自官方文件（2026-11-10 查閱），連結附於各節。
+> 狀態：第一至四階段（後端基礎、前端改為伺服器為主、檔案上傳、技能與記憶）已在本機完成，未部署、未推送。平台限制皆引自官方文件（2026-11-10 查閱），連結附於各節。
 
 ## 0. 總覽
 
@@ -144,6 +144,15 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 - 第一版（已實作）：查詢拆成英數字詞＋中文二字組（bigram），以命中數＋標題加權＋`simple` 全文分數排序。PostgreSQL 內建全文檢索不會斷中文；實測 pg_trgm 對短中文查詢相似度只有 0.2，不適合當主要依據。個人知識庫規模（數千塊）順序掃描即可。
 - 第二版（第五階段，選用）：`CREATE EXTENSION vector`（Neon 支援 pgvector 0.8），`doc_chunks` 加 `embedding vector(N)`＋HNSW 索引，用使用者自己的供應商產生嵌入，和關鍵字分數混合排序。維度依所選嵌入模型決定，所以延後。
 
+## 3.4 技能與記憶（第四階段，已完成）
+
+- **注入在伺服器做**（`src/repo/context.js`）：聊天請求帶 `project_id`、`skill_ids`、`use_skills`、`use_memory`，伺服器查技能與記憶後加進 system prompt。前端送來的同名內部欄位會被忽略，無法偽造。
+- **技能觸發**：`always` 每次；`keyword` 最後一則使用者訊息含任一關鍵字（不分大小寫）；`manual` 只在輸入框旁的技能選單選取時。上限 6 個、指示合計 16,000 字。
+- **記憶挑選**：全域記憶＋目前專案的記憶；釘選優先，其次和這次訊息二字組重疊多的，再其次最近更新。上限 40 條、6,000 字。記憶與技能視為使用者可信設定，和知識庫、搜尋結果（不可信資料）分開標示。
+- **記憶建議**（`src/memory_suggest.js`，部署時為 Edge Function `/api/memories/suggest`）：回覆後若使用者訊息像在談自己（含「我」「以後」「喜歡」「記住」等），用同一個模型非串流呼叫一次，回傳最多 3 條建議。**只回傳，不寫入**；使用者按「記住」才 `POST /api/memories`。伺服器會濾掉疑似金鑰、密碼、長數字（證件、帳號）與重複（含二字組相似度 ≥ 0.7 的近似重複）。
+- 設定：「在對話中使用技能」「在對話中使用記憶」「回覆後建議可記住的事」三個開關，會同步到伺服器 settings。回覆下方顯示「已套用技能：…」。
+- 成本：建議每次多一次模型呼叫（用使用者自己的 Key）；放在 Edge，等待時間不計 Netlify compute。
+
 ## 4. 前端改動範圍（第二階段）
 
 前端是單檔 `src/web_decoded.html`（約 31 萬字元），localStorage 鍵約 30 個。策略：**伺服器為主、localStorage 只當快取與離線暫存**，新增一個 `api` 小模組集中所有請求。
@@ -196,7 +205,7 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 | 1 後端基礎 | Netlify 結構、Neon schema、登入節流、AES-GCM、供應商／模型（含空 Key、分組）、設定、個人資料、對話、專案、文件＋檢索、技能、Memory、Prompt 的 CRUD API、Edge 串流、D1 匯入腳本、測試 | **完成（本機）** |
 | 2 前端改為伺服器為主 | 伺服器儲存層取代 D1 同步、供應商設定頁（Key 加密存伺服器、可留空、可清除）、分組模型選單、聊天送 `provider_id`、知識庫改伺服器檢索、舊瀏覽器資料與 Key 自動上傳 | **完成（本機）**；首次部署待你同意 |
 | 3 檔案 | Neon Object Storage bucket＋CORS、presigned 上傳、pdf.js／mammoth 抽文字、專案檔案 | **完成（本機）**；bucket 與 CORS 部署時建立 |
-| 4 技能與 Memory | 設定頁、技能注入系統提示（always／keyword／手動）、對話後建議寫入 Memory（需使用者確認） | |
+| 4 技能與 Memory | 設定頁、技能注入系統提示（always／keyword／手動）、對話後建議寫入 Memory（需使用者確認） | **完成（本機）** |
 | 5 強化 | pgvector 混合檢索、金鑰重加密腳本、匯出備份 | |
 
 ### 免費額度風險

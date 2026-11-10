@@ -262,6 +262,22 @@
     .model-group-label { font-size: 0.68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); padding: 8px 10px 4px; }
     .model-group-label:not(:first-child) { border-top: 1px solid rgba(127,127,127,0.18); margin-top: 4px; }
     .model-group-empty { padding: 4px 10px 8px; }
+    .sm-row { display: flex; align-items: center; gap: 8px; background: var(--elev); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; }
+    .sm-row.sm-off { opacity: 0.55; }
+    .sm-main { flex: 1; min-width: 0; }
+    .sm-title { font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sm-title.sm-wrap { white-space: normal; word-break: break-word; }
+    .sm-meta { font-size: 0.7rem; color: var(--dim); margin-top: 2px; }
+    .sm-row .mini-x { opacity: 1; }
+    .sm-pin { background: none; border: none; cursor: pointer; color: var(--dim); font-size: 0.95rem; padding: 0 2px; }
+    .sm-pin.on { color: var(--accent, #f5b301); }
+    .skill-pill { appearance: none; -webkit-appearance: none; max-width: 160px; cursor: pointer; }
+    .skill-pill.active { border-color: var(--accent, currentColor); }
+    .mem-suggest { margin-top: 10px; border: 1px dashed var(--line); border-radius: 10px; padding: 8px 10px; }
+    .mem-suggest-title { font-size: 0.75rem; color: var(--dim); margin-bottom: 6px; }
+    .mem-suggest-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .mem-suggest-text { flex: 1; font-size: 0.8rem; }
+    .applied-skills { opacity: 0.75; }
     .server-file-row { background: var(--elev); border: 1px solid var(--line); padding: 6px 8px; border-radius: 8px; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
     .server-file-main { flex: 1; min-width: 0; }
     .server-file-name { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

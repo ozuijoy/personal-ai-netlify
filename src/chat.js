@@ -55,6 +55,8 @@ function systemPrompt(body, searchResults) {
   const locale = clampText(body.locale, 32)
   const tz = clampText(body.timezone, 64)
   parts.push(`目前時間：${new Date().toISOString()}${tz ? `；使用者時區：${tz}` : ''}${locale ? `；介面語言：${locale}` : ''}。`)
+  // 伺服器注入的技能與 Memory（第四階段）；只能由伺服器設定，前端送來的同名欄位會被忽略
+  if (typeof body.__serverContext === 'string' && body.__serverContext) parts.push(body.__serverContext)
   const docs = docsContext(body.knowledge_snippets)
   if (docs) parts.push(docs)
   if (searchResults && searchResults.length) {
@@ -113,9 +115,10 @@ function sseFromJson(data) {
   })
 }
 
+// loadContext(body, env, text) -> {text, skills, memories}：伺服器注入技能與 Memory（失敗不影響聊天）。
 // resolveProvider(body, env) -> {baseUrl, apiKey, model}；Netlify 版由呼叫端注入（查 Neon + 解密），
 // 未注入時沿用舊行為（請求內帶 provider 或伺服器 Groq）。
-export async function handleChat(request, env, { resolveProvider } = {}) {
+export async function handleChat(request, env, { resolveProvider, loadContext } = {}) {
   let body
   try {
     body = await readJsonBody(request)
@@ -141,6 +144,17 @@ export async function handleChat(request, env, { resolveProvider } = {}) {
     const found = await searchWeb(query, env, { maxResults: 5 })
     searchResults = found.results || []
     searchStatus = found.error || (found.cached ? 'cached' : 'ok')
+  }
+
+  delete body.__serverContext
+  let injected = { skills: [], memories: [] }
+  if (loadContext) {
+    try {
+      injected = (await loadContext(body, env, lastUserText(body))) || injected
+      if (injected.text) body.__serverContext = injected.text
+    } catch (err) {
+      console.error('context load failed', err && err.message)
+    }
   }
 
   let messages
@@ -201,6 +215,8 @@ export async function handleChat(request, env, { resolveProvider } = {}) {
     'X-Accel-Buffering': 'no',
     'X-Sources': encodeURIComponent(JSON.stringify(sources)),
     'X-Search-Status': searchStatus || 'off',
+    'X-Skills': encodeURIComponent(JSON.stringify((injected.skills || []).map((x) => x.name))),
+    'X-Memory-Count': String((injected.memories || []).length),
   }
 
   if (type.includes('application/json')) {

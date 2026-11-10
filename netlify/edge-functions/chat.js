@@ -10,6 +10,7 @@ import { applySecurityHeaders, sameOriginRequest } from '../../src/security.js'
 import { errorJson } from '../../src/config.js'
 import { getDb } from '../../src/db.js'
 import { resolveChatProvider } from '../../src/repo/providers.js'
+import { chatContextLoader } from '../../src/repo/context.js'
 
 export default async (request) => {
   const env = Netlify.env.toObject()
@@ -19,7 +20,11 @@ export default async (request) => {
   else if (!(await requireAuth(request, env))) response = errorJson('請先登入', 401, 'unauthorized')
   else {
     try {
-      response = await handleChat(request, env, { resolveProvider: (body, e) => resolveChatProvider(getDb(e), body, e) })
+      const db = getDb(env)
+      response = await handleChat(request, env, {
+        resolveProvider: (body, e) => resolveChatProvider(db, body, e),
+        loadContext: db ? chatContextLoader(db) : undefined,
+      })
     } catch (err) {
       console.error('chat failed', err && err.message)
       response = errorJson('伺服器發生錯誤', 500, 'internal_error')

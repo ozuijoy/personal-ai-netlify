@@ -17,6 +17,7 @@
 //   POST   /api/files/:id/complete      {text?, title?, extract, pages?} 上傳完成、寫入知識庫
 //   GET    /api/files/:id/download[?inline=1]  → {url}（presigned GET，5 分鐘）
 //   DELETE /api/files/:id
+//   POST   /api/memories/suggest       {messages, provider_id, model} → 建議（不寫入）
 import { errorJson, json } from './config.js'
 import { requireAuth } from './auth.js'
 import { bodyErrorMessage, readJsonBody } from './body.js'
@@ -34,6 +35,7 @@ import {
 } from './repo/conversations.js'
 import { completeFile, createPendingFile, deleteFile, getFile, listFiles, maxUploadBytes } from './repo/files.js'
 import { createStorage } from './storage.js'
+import { handleMemorySuggest } from './memory_suggest.js'
 
 const ID = '([A-Za-z0-9_-]{1,100})'
 const KINDS = Object.keys(ENTITIES).join('|')
@@ -49,6 +51,8 @@ function needStorage(env) {
 }
 
 const ROUTES = [
+  // 部署時由 Edge Function 接手同一路徑；這裡供 netlify dev / 測試使用
+  ['POST', /^\/api\/memories\/suggest$/, async ({ request, env, db, body }) => handleMemorySuggest(request, env, db, { body })],
   ['GET', /^\/api\/files$/, async ({ db, url }) => json({ ok: true, files: await listFiles(db, { projectId: url.searchParams.get('project_id') || undefined }) })],
   ['POST', /^\/api\/files$/, async ({ db, env, body }) => {
     const storage = needStorage(env)
