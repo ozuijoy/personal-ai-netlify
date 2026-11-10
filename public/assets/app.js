@@ -1,6 +1,6 @@
 (function() {
   var _root = document.getElementById('app');
-  if (_root) _root.innerHTML = "<div class=\"ta-app\">\n<div class=\"ta-app\">\n  <div class=\"sidebar-overlay\" id=\"sidebar-overlay\"></div>\n  <aside class=\"ta-sidebar\" id=\"sidebar\">\n    <div class=\"sb-head\">\n      <a href=\"/\" class=\"brand-logo\">\n        <img src=\"/avatar.png\" alt=\"\" class=\"brand-avatar\">\n        <span class=\"brand-title\">Personal AI</span>\n      </a>\n      <button id=\"sidebar-close-btn\" class=\"icon-btn\" title=\"Cerrar\" style=\"display:none\">✕</button>\n    </div>\n    <button id=\"new-chat-btn\" class=\"new-chat-btn\" type=\"button\">\n      <span class=\"nc-main\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6\"/><path d=\"M18.4 2.6a2 2 0 0 1 2.9 2.9L12 14.8 8 16l1.2-4z\"/></svg><span data-i18n=\"newChat\">Nueva conversación</span></span>\n      <kbd class=\"hint\">Ctrl K</kbd>\n    </button>\n    <button id=\"temp-chat-btn\" class=\"new-chat-btn ghost\" type=\"button\">\n      <span class=\"nc-main\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><circle cx=\"12\" cy=\"12\" r=\"9\" stroke-dasharray=\"3 3\"/><path d=\"M12 7v5l3 2\"/></svg><span data-i18n=\"tempChat\">Chat temporal</span></span>\n      <kbd class=\"hint\">Ctrl ⇧ N</kbd>\n    </button>\n    <div class=\"history-search-box\">\n      <input type=\"search\" id=\"history-search\" class=\"history-search-input\" placeholder=\"Buscar…\" autocomplete=\"off\" data-i18n=\"searchPh\" data-i18n-attr=\"placeholder\">\n    </div>\n    <div class=\"sb-tabs\">\n      <button type=\"button\" class=\"sb-tab active\" data-view=\"chats\" id=\"tab-chats\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z\"/></svg><span data-i18n=\"chats\">Chats</span></button>\n      <button type=\"button\" class=\"sb-tab\" data-view=\"projects\" id=\"tab-projects\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg><span data-i18n=\"projects\">Proyectos</span></button>\n      <button type=\"button\" class=\"sb-tab\" data-view=\"docs\" id=\"tab-docs\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"/><path d=\"M14 3v5h5\"/><path d=\"M9 13h6M9 17h4\"/></svg><span data-i18n=\"docs\">Documentos</span></button>\n      \n      <button type=\"button\" class=\"sb-tab\" data-view=\"prompts\" id=\"tab-prompts\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M4 6h16M4 12h10M4 18h7\"/><path d=\"m17 15 3 3-3 3\"/></svg><span>Prompts</span></button>\n    </div>\n    <div class=\"history-list\" id=\"history-list\"></div>\n    <div class=\"sb-foot\">\n                  <button type=\"button\" id=\"open-settings-btn\" class=\"sb-link\" data-open-settings=\"pane-general\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z\"/></svg><span data-i18n=\"settings\">Ajustes</span></button>\n      \n      <div class=\"sb-account\">\n      <button type=\"button\" class=\"user-pill\" id=\"user-profile-pill\" data-open-settings=\"pane-account\">\n        <div style=\"display:flex;align-items:center;gap:8px;min-width:0\">\n          <div class=\"avatar-letter\" id=\"user-letter\">T</div>\n          <div style=\"min-width:0\">\n            <div class=\"user-info-name\" id=\"user-display-name\">Invitado</div>\n            <div class=\"user-info-tier\" id=\"user-display-tier\">50K tokens / día</div>\n          </div>\n        </div>\n      </button>\n      <div id=\"lang-select\" class=\"lang-picker\" aria-label=\"Language\"></div>\n      </div>\n    </div>\n  </aside>\n\n  <main class=\"ta-main\">\n    <header class=\"ta-topbar\">\n      <div class=\"topbar-left\">\n        <button id=\"sidebar-toggle-btn\" class=\"icon-btn menu-toggle-btn\" type=\"button\" title=\"Menú\" aria-label=\"Menú\">\n          <svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><line x1=\"3\" y1=\"12\" x2=\"21\" y2=\"12\"/><line x1=\"3\" y1=\"6\" x2=\"21\" y2=\"6\"/><line x1=\"3\" y1=\"18\" x2=\"21\" y2=\"18\"/></svg>\n        </button>\n        <div class=\"model-picker\" id=\"model-picker\">\n          <button type=\"button\" class=\"model-picker-btn\" id=\"model-picker-btn\" aria-haspopup=\"listbox\" aria-expanded=\"false\">\n            <span class=\"model-picker-label\" id=\"model-picker-label\">GPT OSS 120B</span>\n            <svg class=\"model-picker-caret\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"><path d=\"M6 9l6 6 6-6\"/></svg>\n          </button>\n          <div class=\"model-menu\" id=\"model-menu\" role=\"listbox\"></div>\n        </div>\n      </div>\n      <div class=\"topbar-right\">\n        <span id=\"temp-badge\" class=\"temp-badge\" data-i18n=\"tempOn\">Temporal</span>\n        <button id=\"cmd-open-btn\" class=\"topbar-icon-btn\" type=\"button\" title=\"Ctrl+P\" data-i18n=\"commandPalette\" data-i18n-attr=\"title\" aria-label=\"Comandos\">\n          <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.5\"/></svg>\n        </button>\n        <button id=\"export-chat-btn\" class=\"topbar-icon-btn\" type=\"button\" data-i18n=\"exportChat\" data-i18n-attr=\"title\" aria-label=\"Exportar\">\n          <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3v12\"/><path d=\"M8 11l4 4 4-4\"/><path d=\"M5 21h14\"/></svg>\n        </button>\n        <button id=\"topbar-auth-btn\" class=\"topbar-action-btn primary\" type=\"button\" data-open-settings=\"pane-general\">\n          <span class=\"avatar-letter\" id=\"topbar-letter\" hidden>T</span>\n          <span id=\"topbar-auth-text\">設定</span>\n        </button>\n      </div>\n    </header>\n    <div class=\"ta-chat-scroll\" id=\"chat-scroll\">\n      <div class=\"ta-chat-wrap\" id=\"chat-container\"></div>\n    </div>\n    <footer class=\"ta-input-dock\">\n      <div class=\"capsule-box\">\n        <div id=\"attached-badge\" class=\"file-badge-preview\">\n          <img id=\"attached-thumb\" alt=\"\" hidden>\n          <span id=\"attached-kind\">Documento</span>\n          <span id=\"attached-name\">documento.txt</span>\n          <button id=\"remove-file-btn\" type=\"button\" style=\"background:none;border:none;color:var(--dim);cursor:pointer\">✕</button>\n        </div>\n        <textarea id=\"prompt-input\" class=\"prompt-textarea\" rows=\"1\" placeholder=\"Pregunta lo que quieras…\" data-i18n=\"askPh\" data-i18n-attr=\"placeholder\"></textarea>\n        <div class=\"dock-controls\">\n          <div class=\"dock-plus\" id=\"dock-plus\">\n            <button type=\"button\" class=\"dock-btn dock-plus-btn\" id=\"dock-plus-btn\" aria-haspopup=\"menu\" aria-expanded=\"false\" aria-controls=\"dock-plus-menu\" aria-label=\"Más opciones\" title=\"Más opciones\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></button>\n            <div class=\"dock-plus-menu\" id=\"dock-plus-menu\" role=\"menu\" hidden>\n              <button type=\"button\" role=\"menuitem\" class=\"dpm-item\" data-dpm=\"attach\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48\"/></svg><span class=\"dpm-label\">Adjuntar archivo</span></button>\n              <button type=\"button\" role=\"menuitemcheckbox\" aria-checked=\"false\" class=\"dpm-item\" data-dpm=\"web\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18\"/></svg><span class=\"dpm-label\">Buscar en la web</span><span class=\"dpm-check\" aria-hidden=\"true\">✓</span></button>\n              <button type=\"button\" role=\"menuitemcheckbox\" aria-checked=\"false\" class=\"dpm-item\" data-dpm=\"image\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><circle cx=\"9\" cy=\"10\" r=\"2\"/><path d=\"m21 16-5-5-9 9\"/></svg><span class=\"dpm-label\">Crear imagen</span><span class=\"dpm-check\" aria-hidden=\"true\">✓</span></button>\n                          </div>\n          </div>\n          <div class=\"control-pills\">\n            <button id=\"web-search-pill\" class=\"dock-pill\" type=\"button\" data-i18n=\"searchWeb\">Buscar</button>\n            <button id=\"image-gen-pill\" class=\"dock-pill\" type=\"button\" data-i18n=\"image\">Imagen</button>\n            <div class=\"length-segmented-pill\" style=\"display:none;\" title=\"Longitud\"><button class=\"length-opt-btn active\" data-len=\"normal\" id=\"len-btn-normal\" type=\"button\" data-i18n=\"normal\">Normal</button></div>\n          </div>\n          <div class=\"dock-action-buttons\">\n            <input type=\"file\" id=\"file-uploader\" style=\"display:none\" accept=\"image/jpeg,image/png,image/webp,image/gif,.txt,.md,.json,.js,.ts,.py,.csv,.log,.html,.css\">\n            <button id=\"attach-file-btn\" class=\"dock-btn\" type=\"button\" title=\"Adjuntar archivo o imagen\" aria-label=\"Adjuntar\" data-i18n=\"attach\" data-i18n-attr=\"title\">\n              <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48\"/></svg>\n            </button>\n            <button id=\"mic-btn\" class=\"dock-btn\" type=\"button\" title=\"Grabar voz\" aria-label=\"Grabar voz\" data-i18n=\"dictate\" data-i18n-attr=\"title\">\n              <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"2\" width=\"6\" height=\"12\" rx=\"3\"/><path d=\"M5 11a7 7 0 0 0 14 0\"/><path d=\"M12 18v4\"/><path d=\"M8 22h8\"/></svg>\n            </button>\n            <button id=\"speak-last-btn\" class=\"dock-btn\" type=\"button\" title=\"Leer respuesta\" aria-label=\"Leer\" data-i18n=\"speakLast\" data-i18n-attr=\"title\">\n              <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M11 5L6 9H3v6h3l5 4V5z\"/><path d=\"M15.5 8.5a5 5 0 0 1 0 7\"/><path d=\"M18.5 6a8.5 8.5 0 0 1 0 12\"/></svg>\n            </button>\n            <button id=\"send-btn\" class=\"send-submit-btn\" type=\"button\" title=\"Enviar\">\n              <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\"><path d=\"M12 19V5M5 12l7-7 7 7\"/></svg>\n            </button>\n          </div>\n        </div>\n      </div>\n      <p class=\"disclaimer\"><span data-i18n=\"disclaimer\">Personal AI puede equivocarse.</span></p>\n    </footer>\n  </main>\n\n  <aside class=\"art-panel\" id=\"art-panel\" aria-label=\"Artefacto\">\n    <div class=\"art-head\">\n      <div class=\"art-head-top\">\n        <div class=\"art-title-wrap\">\n          <textarea class=\"art-title-input\" id=\"art-title\" maxlength=\"72\" rows=\"2\" placeholder=\"Título corto (máx. 72)\" aria-label=\"Título\">Artifact</textarea>\n          <div class=\"art-title-count\" id=\"art-title-count\">0/72</div>\n        </div>\n        <button type=\"button\" class=\"icon-btn\" id=\"art-close-btn\" title=\"Cerrar\" aria-label=\"Cerrar\">✕</button>\n      </div>\n      <div class=\"art-toolbar\">\n        <select id=\"art-format\" class=\"art-format\" title=\"Formato\" aria-label=\"Formato del artifact\"></select>\n        <button type=\"button\" class=\"topbar-action-btn\" id=\"art-copy-btn\" data-art-i18n=\"copy\">Copiar</button>\n        <button type=\"button\" class=\"topbar-action-btn\" id=\"art-save-btn\">Guardar</button>\n      </div>\n      <div class=\"art-viewbar\">\n        <div class=\"art-view\" role=\"tablist\" aria-label=\"Vista\">\n          <button type=\"button\" class=\"art-view-btn active\" role=\"tab\" aria-selected=\"true\" data-view=\"preview\" id=\"art-view-preview\" data-art-i18n=\"preview\">Vista previa</button>\n          <button type=\"button\" class=\"art-view-btn\" role=\"tab\" aria-selected=\"false\" data-view=\"code\" id=\"art-view-code\" data-art-i18n=\"code\">Código</button>\n        </div>\n        <select id=\"art-version\" class=\"art-format art-version\" aria-label=\"Versión\" hidden></select>\n        <span class=\"art-viewbar-spacer\"></span>\n        <button type=\"button\" class=\"icon-btn art-icon-btn\" id=\"art-download-btn\" data-art-i18n-title=\"download\" title=\"Descargar\" aria-label=\"Descargar\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 4v11\"/><path d=\"m7 10 5 5 5-5\"/><path d=\"M5 20h14\"/></svg></button>\n        <button type=\"button\" class=\"icon-btn art-icon-btn\" id=\"art-fs-btn\" data-art-i18n-title=\"fullscreen\" title=\"Pantalla completa\" aria-label=\"Pantalla completa\" aria-pressed=\"false\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9V4h5\"/><path d=\"M20 9V4h-5\"/><path d=\"M4 15v5h5\"/><path d=\"M20 15v5h-5\"/></svg></button>\n      </div>\n      \n    </div>\n    <div class=\"art-extras\">\n      <button type=\"button\" class=\"art-extras-toggle\" id=\"art-extras-toggle\">Fuentes, recursos y widgets</button>\n      <div class=\"art-extras-body\" id=\"art-extras-body\" hidden>\n        <label for=\"art-sources\">Fuentes propias (una por línea: Título | https://…)</label>\n        <textarea id=\"art-sources\" placeholder=\"SEC 10-K | https://www.sec.gov/…\"></textarea>\n        <label for=\"art-resources\">Recursos (una por línea)</label>\n        <textarea id=\"art-resources\" placeholder=\"Modelo Excel | https://…\"></textarea>\n        <label for=\"art-widgets\">Widgets (quote:MSFT · note:texto · https://…)</label>\n        <textarea id=\"art-widgets\" placeholder=\"quote:MSFT&#10;note:Riesgo: múltiplo elevado&#10;https://www.tradingview.com/symbols/MSFT/\"></textarea>\n      </div>\n    </div>\n    <div class=\"art-split\" id=\"art-split\">\n      <textarea class=\"art-editor\" id=\"art-editor\" spellcheck=\"false\" placeholder=\"Escribe aquí el contenido. La IA genera una base; tú la editas.\" aria-label=\"Editor del artifact\"></textarea>\n      <iframe class=\"art-preview\" id=\"art-preview\" hidden sandbox=\"allow-scripts allow-forms allow-modals allow-popups\" referrerpolicy=\"no-referrer\" title=\"Vista del artifact\"></iframe>\n    </div>\n  </aside>\n</div>\n\n<div class=\"modal-backdrop\" id=\"modal-settings\">\n  <div class=\"modal-card settings-wide\">\n    <div class=\"modal-header\"><div class=\"modal-title\" data-i18n=\"settings\">Ajustes</div><button class=\"modal-close-btn\" data-modal=\"modal-settings\" type=\"button\" aria-label=\"Cerrar\" data-i18n=\"close\" data-i18n-attr=\"aria-label\">✕</button></div>\n    <div class=\"settings-layout\">\n      <nav class=\"settings-nav\" aria-label=\"設定\">\n        <div class=\"settings-nav-label\">應用程式</div>\n        <button type=\"button\" class=\"settings-nav-btn active\" data-pane=\"pane-general\" data-i18n=\"tabGeneral\">一般</button>\n        <button type=\"button\" class=\"settings-nav-btn\" data-pane=\"pane-providers\">供應商</button>\n        <button type=\"button\" class=\"settings-nav-btn\" data-pane=\"pane-appearance\" data-i18n=\"tabAppearance\">外觀</button>\n        <button type=\"button\" class=\"settings-nav-btn\" data-pane=\"pane-behavior\" data-i18n=\"tabBehavior\">行為</button>\n        <button type=\"button\" class=\"settings-nav-btn\" data-pane=\"pane-customize\" data-i18n=\"tabCustomize\">個人化</button>\n        <div class=\"settings-nav-label\">資料</div>\n        <button type=\"button\" class=\"settings-nav-btn\" data-pane=\"pane-data\" data-i18n=\"tabData\">資料控制</button>\n      </nav>\n      <div class=\"settings-main\">\n        <div id=\"pane-general\" class=\"settings-pane active\">\n          <div class=\"settings-section-title\" data-i18n=\"tabGeneral\">General</div>\n          <p class=\"settings-section-desc\" data-i18n=\"generalDesc\">Idioma, modelo por defecto y longitud de respuesta.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"language\">Idioma</label>\n            <div id=\"set-lang\" class=\"lang-picker open-down\"></div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"setDefaultModel\">Modelo por defecto</label>\n            <select id=\"set-default-model\" class=\"form-input\"></select>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"setDefaultLength\">Longitud por defecto</label>\n            <div class=\"choice-row\" id=\"set-default-length\">\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_len_mode\" data-value=\"corto\" data-i18n=\"short\">Corto</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_len_mode\" data-value=\"normal\" data-i18n=\"normal\">Normal</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_len_mode\" data-value=\"extendido\" data-i18n=\"long\">Largo</button>\n            </div>\n          </div>\n          <p class=\"settings-hint\">Personal AI · 2026.2 · ai.personal-ai.workers.dev</p>\n        </div>\n\n        <div id=\"pane-account\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabAccount\">Cuenta</div>\n          <p class=\"settings-section-desc\" data-i18n=\"accountDesc\">Tu perfil, plan, correos y acceso.</p>\n          <div id=\"account-guest\" style=\"display:none;text-align:center;padding:18px 8px;\">\n            <p style=\"font-size:0.84rem;color:var(--muted);margin-bottom:12px\" data-i18n=\"needLogin\">Inicia sesión para sincronizar la cuenta.</p>\n            <a href=\"/login\" class=\"topbar-action-btn primary\" style=\"text-decoration:none\" data-i18n=\"signIn\">Acceder</a>\n          </div>\n          <div id=\"account-authed\">\n            <div class=\"settings-card\">\n              <div class=\"settings-kv\">\n                <div class=\"settings-kv-label\" data-i18n=\"displayName\">Nombre</div>\n                <div class=\"settings-kv-control\">\n                  <input type=\"text\" id=\"set-display-name\" class=\"form-input\" maxlength=\"80\" autocomplete=\"name\">\n                </div>\n              </div>\n              <div class=\"settings-kv\">\n                <div class=\"settings-kv-label\" data-i18n=\"emailLabel\">Correo</div>\n                <div class=\"settings-kv-value\" id=\"account-email-display\"></div>\n              </div>\n              <div class=\"settings-kv\">\n                <div class=\"settings-kv-label\" data-i18n=\"tabPlan\">Plan y facturación</div>\n                <span class=\"plan-badge\" id=\"account-plan-badge\">FREE</span>\n              </div>\n            </div>\n\n            <div class=\"settings-block-title\" data-i18n=\"emailPrefs\">Correos</div>\n            <p class=\"settings-hint\" data-i18n=\"emailsHint\">Elige qué correos quieres recibir en tu bandeja.</p>\n            <div class=\"settings-card\">\n              <label class=\"toggle-row\"><span data-i18n=\"notifyProduct\">Novedades de producto</span><input type=\"checkbox\" id=\"set-notify-product\" checked></label>\n              <label class=\"toggle-row\"><span data-i18n=\"notifySecurity\">Alertas de seguridad</span><input type=\"checkbox\" id=\"set-notify-security\" checked></label>\n              <label class=\"toggle-row\"><span data-i18n=\"notifyDigest\">Resumen ocasional</span><input type=\"checkbox\" id=\"set-notify-digest\"></label>\n              <div class=\"settings-actions\">\n                <button type=\"button\" id=\"test-email-btn\" class=\"topbar-action-btn\" data-i18n=\"testEmail\">Enviar correo de prueba</button>\n              </div>\n            </div>\n\n            <p id=\"oauth-pass-hint\" class=\"settings-hint\" style=\"display:none;margin-top:16px\"></p>\n            <div id=\"password-fields\">\n              <div class=\"settings-block-title\" data-i18n=\"passwordSection\">Contraseña</div>\n              <div class=\"settings-card\">\n                <div class=\"form-group\">\n                  <label class=\"form-label\" data-i18n=\"currentPassword\">Contraseña actual</label>\n                  <input type=\"password\" id=\"set-cur-pass\" class=\"form-input\" autocomplete=\"current-password\">\n                </div>\n                <div class=\"form-group\">\n                  <label class=\"form-label\" data-i18n=\"newPassword\">Nueva contraseña</label>\n                  <input type=\"password\" id=\"set-new-pass\" class=\"form-input\" autocomplete=\"new-password\" minlength=\"6\">\n                </div>\n                <div class=\"settings-actions\">\n                  <button type=\"button\" id=\"change-pass-btn\" class=\"topbar-action-btn primary\" data-i18n=\"changePassword\">Cambiar contraseña</button>\n                </div>\n              </div>\n            </div>\n\n            <div class=\"settings-block-title\" data-i18n=\"sessionTitle\">Sesión</div>\n            <div class=\"settings-card\" style=\"padding:16px\">\n              <div class=\"settings-kv-label\" data-i18n=\"logout\">Cerrar sesión</div>\n              <p class=\"settings-kv-sub\" data-i18n=\"sessionHint\">Cierra la sesión en este navegador. El historial local se queda.</p>\n              <button type=\"button\" id=\"settings-logout-btn-legacy\" class=\"logout-big-btn\" data-i18n=\"logout\">Cerrar sesión</button>\n            </div>\n          </div>\n        </div>\n\n        <div id=\"pane-appearance\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabAppearance\">Apariencia</div>\n          <p class=\"settings-section-desc\" data-i18n=\"appearanceDesc\">Tema, tamaño de letra y densidad de la interfaz.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"appearanceTheme\">Tema</label>\n            <div class=\"theme-grid\">\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"dark\"><span class=\"theme-swatch\" data-swatch=\"dark\"></span><span data-i18n=\"themeDark\">Oscuro</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"gray\"><span class=\"theme-swatch\" data-swatch=\"gray\"></span><span data-i18n=\"themeGray\">Gris</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"dim\"><span class=\"theme-swatch\" data-swatch=\"dim\"></span><span data-i18n=\"themeDim\">Carbón</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"navy\"><span class=\"theme-swatch\" data-swatch=\"navy\"></span><span data-i18n=\"themeNavy\">Marino</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"light\"><span class=\"theme-swatch\" data-swatch=\"light\"></span><span data-i18n=\"themeLight\">Claro</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"paper\"><span class=\"theme-swatch\" data-swatch=\"paper\"></span><span data-i18n=\"themePaper\">Papel</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"hacker\"><span class=\"theme-swatch\" data-swatch=\"hacker\"></span><span>Hacker</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"cyberpunk\"><span class=\"theme-swatch\" data-swatch=\"cyberpunk\"></span><span>Cyberpunk</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"sunset\"><span class=\"theme-swatch\" data-swatch=\"sunset\"></span><span>Sunset</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"ocean\"><span class=\"theme-swatch\" data-swatch=\"ocean\"></span><span>Ocean</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"forest\"><span class=\"theme-swatch\" data-swatch=\"forest\"></span><span>Forest</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"rose\"><span class=\"theme-swatch\" data-swatch=\"rose\"></span><span>Rose</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"lavender\"><span class=\"theme-swatch\" data-swatch=\"lavender\"></span><span>Lavender</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"system\"><span class=\"theme-swatch\" data-swatch=\"system\"></span><span data-i18n=\"themeSystem\">Sistema</span></button>\n            </div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"accentLabel\">Acento</label>\n            <div class=\"accent-row\">\n              <button type=\"button\" class=\"accent-dot accent-auto\" data-pref=\"ta_accent\" data-value=\"auto\" title=\"Neutro\" aria-label=\"Neutro\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#38bdf8\" style=\"background:#38bdf8\" title=\"Cielo\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#a1a1aa\" style=\"background:#a1a1aa\" title=\"Gris\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#34d399\" style=\"background:#34d399\" title=\"Menta\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#2dd4bf\" style=\"background:#2dd4bf\" title=\"Teal\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#818cf8\" style=\"background:#818cf8\" title=\"Índigo\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#a78bfa\" style=\"background:#a78bfa\" title=\"Violeta\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#f59e0b\" style=\"background:#f59e0b\" title=\"Ámbar\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#fb7185\" style=\"background:#fb7185\" title=\"Rosa\"></button>\n            </div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"fontSize\">Tamaño de letra</label>\n            <div class=\"choice-row\">\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_font\" data-value=\"sm\" data-i18n=\"fontSm\">Compacto</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_font\" data-value=\"md\" data-i18n=\"fontMd\">Normal</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_font\" data-value=\"lg\" data-i18n=\"fontLg\">Grande</button>\n            </div>\n          </div>\n          <div class=\"settings-card\">\n            <label class=\"toggle-row\"><span data-i18n=\"compactSidebar\">Barra lateral compacta</span><input type=\"checkbox\" id=\"set-compact-sb\"></label>\n            <label class=\"toggle-row\"><span data-i18n=\"reduceMotion\">Reducir movimiento</span><input type=\"checkbox\" id=\"set-reduce-motion\"></label>\n          </div>\n        </div>\n\n        <div id=\"pane-behavior\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabBehavior\">Comportamiento</div>\n          <p class=\"settings-section-desc\" data-i18n=\"behaviorDesc\">Cómo envía, busca y confirma el workspace.</p>\n          <div class=\"settings-card\">\n            <label class=\"toggle-row\"><span data-i18n=\"enterToSend\">Enter envía el mensaje</span><input type=\"checkbox\" id=\"set-enter-send\" checked></label>\n            <label class=\"toggle-row\"><span data-i18n=\"autoSearch\">Buscar en la web por defecto</span><input type=\"checkbox\" id=\"set-auto-search\"></label>\n            <label class=\"toggle-row\"><span data-i18n=\"showTimestamps\">Mostrar hora en los mensajes</span><input type=\"checkbox\" id=\"set-show-time\"></label>\n            <label class=\"toggle-row\"><span data-i18n=\"confirmDeleteChat\">Confirmar al borrar un chat</span><input type=\"checkbox\" id=\"set-confirm-del\" checked></label>\n            <label class=\"toggle-row\"><span data-i18n=\"autoRead\">Leer en voz alta las respuestas</span><input type=\"checkbox\" id=\"set-auto-read\"></label>\n          </div>\n          <p class=\"settings-hint\" data-i18n=\"autoReadHint\">Al terminar cada respuesta, el navegador la lee. También puedes pulsar el altavoz del compositor o «Escuchar» en cada mensaje.</p>\n        </div>\n\n        <div id=\"pane-customize\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabCustomize\">Personalizar</div>\n          <p class=\"settings-section-desc\" data-i18n=\"customizeDesc\">Instrucciones propias y tono de respuesta.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"toneLabel\">Tono</label>\n            <div class=\"choice-row\">\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_tone\" data-value=\"auto\" data-i18n=\"toneAuto\">Auto</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_tone\" data-value=\"direct\" data-i18n=\"toneDirect\">Directo</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_tone\" data-value=\"technical\" data-i18n=\"toneTechnical\">Técnico</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_tone\" data-value=\"concise\" data-i18n=\"toneConcise\">Conciso</button>\n            </div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"systemPrompt\">Instrucción de sistema</label>\n            <textarea id=\"custom-system-prompt\" class=\"form-textarea\" placeholder=\"Cómo debe responder Personal AI…\"></textarea>\n          </div>\n          <div class=\"settings-card\">\n            <label class=\"toggle-row\"><span data-i18n=\"useDocsContext\">Usar documentos como memoria</span><input type=\"checkbox\" id=\"set-use-docs\" checked></label>\n            <label class=\"toggle-row\"><span data-i18n=\"adaptOn\">Adaptarse a mí</span><input type=\"checkbox\" id=\"set-adapt\" checked></label>\n          </div>\n          <p class=\"settings-hint\" data-i18n=\"adaptHint\">Personal recuerda cómo te llamas, lo que le pides que no olvide y los temas que sueles tratar. Dile «recuerda que…» o «olvida eso».</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"adaptSummary\">Lo que sé de ti</label>\n            <div id=\"adapt-summary\" class=\"settings-hint\">—</div>\n          </div>\n          <div id=\"adapt-notes\" class=\"settings-card\"></div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"adaptAdd\">Añadir un hecho</label>\n            <div style=\"display:flex;gap:6px\">\n              <input type=\"text\" id=\"adapt-note-input\" class=\"form-input\" style=\"flex:1\" data-i18n=\"adaptAddPh\" data-i18n-attr=\"placeholder\" placeholder=\"Recuerda que…\">\n              <button type=\"button\" id=\"adapt-note-btn\" class=\"topbar-action-btn primary\" data-i18n=\"save\">Guardar</button>\n            </div>\n          </div>\n          <button type=\"button\" id=\"adapt-forget-btn\" class=\"topbar-action-btn\" data-i18n=\"adaptForget\">Olvidar mi perfil</button>\n        </div>\n\n        \n        <div id=\"pane-providers\" class=\"settings-pane\">\n          <div class=\"settings-section-title\">供應商</div>\n          <p class=\"settings-section-desc\">連線到任何 OpenAI 相容的 <code>/chat/completions</code> 服務。金鑰只保存在這個瀏覽器，不會同步到 D1。</p>\n          <p class=\"settings-hint\" id=\"server-default-hint\">若部署設定了 <code>GROQ_API_KEY</code>，未新增供應商時會使用伺服器預設 Groq。</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\">使用中的供應商</label>\n            <div style=\"display:flex;gap:6px\">\n              <select id=\"provider-active-select\" class=\"form-input\" style=\"flex:1\"></select>\n              <button type=\"button\" id=\"provider-new-btn\" class=\"topbar-action-btn\">新增</button>\n            </div>\n          </div>\n          <div class=\"settings-card\">\n            <div class=\"settings-kv\">\n              <div class=\"settings-kv-label\">名稱</div>\n              <div class=\"settings-kv-control\"><input id=\"provider-name\" class=\"form-input\" type=\"text\" maxlength=\"60\" placeholder=\"Groq\"></div>\n            </div>\n            <div class=\"settings-kv\">\n              <div class=\"settings-kv-label\">Base URL</div>\n              <div class=\"settings-kv-control\"><input id=\"provider-base\" class=\"form-input\" type=\"url\" placeholder=\"https://api.groq.com/openai/v1\" autocomplete=\"off\"></div>\n            </div>\n            <div class=\"settings-kv\">\n              <div class=\"settings-kv-label\">API Key</div>\n              <div class=\"settings-kv-control\"><input id=\"provider-key\" class=\"form-input\" type=\"password\" placeholder=\"sk-…\" autocomplete=\"off\"></div>\n            </div>\n            <div class=\"settings-kv\">\n              <div class=\"settings-kv-label\">模型</div>\n              <div class=\"settings-kv-control\"><input id=\"provider-model\" class=\"form-input\" type=\"text\" list=\"provider-model-list\" placeholder=\"openai/gpt-oss-120b\" autocomplete=\"off\"><datalist id=\"provider-model-list\"></datalist></div>\n            </div>\n            <div class=\"settings-actions\" style=\"display:flex;gap:6px;flex-wrap:wrap\">\n              <button type=\"button\" id=\"provider-test-btn\" class=\"topbar-action-btn\">測試連線</button>\n              <button type=\"button\" id=\"provider-models-btn\" class=\"topbar-action-btn\">抓取模型</button>\n              <button type=\"button\" id=\"provider-save-btn\" class=\"topbar-action-btn primary\">儲存</button>\n              <button type=\"button\" id=\"provider-delete-btn\" class=\"topbar-action-btn btn-danger\">刪除</button>\n            </div>\n            <p id=\"provider-status\" class=\"settings-hint\" style=\"min-height:18px\"></p>\n          </div>\n          <p class=\"settings-hint\">只允許公開 HTTPS 位址。localhost、私有 IP、<code>.local</code>、<code>.internal</code> 會被拒絕。</p>\n        </div>\n\n        <div id=\"pane-plan\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabPlan\">Plan y facturación</div>\n          <p class=\"settings-section-desc\" data-i18n=\"planDesc\">Tu plan actual. El cobro con tarjeta llegará cuando se active Stripe.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"currentPlan\">Plan actual</label>\n            <div><span class=\"plan-badge\" id=\"plan-current-badge\">FREE</span></div>\n          </div>\n          <p class=\"settings-hint\" data-i18n=\"planHint\">Free: 50.000 tokens/día. Enterprise: sin tope (cuentas propias). BYOK: clave Groq en el navegador, sin cuota.</p>\n          <a class=\"topbar-action-btn\" href=\"mailto:owner@personal-ai.workers.dev?subject=Personal%20AI%20Enterprise\" style=\"text-decoration:none;width:fit-content\" data-i18n=\"planContact\">Contactar para Enterprise</a>\n        </div>\n\n        <div id=\"pane-usage\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabUsage\">Uso</div>\n          <p class=\"settings-section-desc\" data-i18n=\"usageDesc\">Consumo diario y cuándo se reinicia el cupo.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"usageUsed\">Tokens de hoy</label>\n            <div id=\"usage-used\" style=\"font-weight:650\">—</div>\n            <div class=\"usage-bar\"><span id=\"usage-bar-fill\"></span></div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"usageReset\">Reinicio disponible</label>\n            <div id=\"usage-reset\">00:00 UTC</div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"opsToday\">Actividad de hoy (servicio)</label>\n            <div class=\"ops-grid\">\n              <div class=\"ops-stat\"><b id=\"ops-chats\">—</b><span data-i18n=\"opsChats\">Chats</span></div>\n              <div class=\"ops-stat\"><b id=\"ops-images\">—</b><span data-i18n=\"opsImages\">Imágenes</span></div>\n              <div class=\"ops-stat\"><b id=\"ops-voice\">—</b><span data-i18n=\"opsVoice\">Voz</span></div>\n              <div class=\"ops-stat\"><b id=\"ops-ideas\">—</b><span data-i18n=\"opsIdeas\">Ideas</span></div>\n            </div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"byok\">Clave Groq (BYOK)</label>\n            <input type=\"password\" id=\"user-groq-key\" class=\"form-input\" placeholder=\"gsk_…\" autocomplete=\"off\">\n            <span class=\"settings-hint\" data-i18n=\"byokHint\">Solo se guarda en este navegador.</span>\n          </div>\n        </div>\n\n        <div id=\"pane-ideas\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"ideas\">Qué quieres añadir</div>\n          <p class=\"settings-section-desc\" data-i18n=\"ideasDesc\">Cuéntale a Owner qué función, corrección o mejora quieres. Llega a owner@personal-ai.workers.dev y entra en el informe diario.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"ideaCat\">Tipo</label>\n            <div class=\"choice-row\">\n              <button type=\"button\" class=\"choice-pill active\" data-idea-cat=\"feat\" data-i18n=\"ideaCatFeat\">Función</button>\n              <button type=\"button\" class=\"choice-pill\" data-idea-cat=\"fix\" data-i18n=\"ideaCatFix\">Corrección</button>\n              <button type=\"button\" class=\"choice-pill\" data-idea-cat=\"other\" data-i18n=\"ideaCatOther\">Otro</button>\n            </div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"ideas\">Idea</label>\n            <textarea id=\"idea-text\" class=\"form-input\" rows=\"5\" data-i18n=\"ideasPh\" data-i18n-attr=\"placeholder\" placeholder=\"Quiero que la IA…\"></textarea>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"ideasEmail\">Tu email (opcional)</label>\n            <input type=\"email\" id=\"idea-email\" class=\"form-input\" autocomplete=\"email\">\n          </div>\n          <input type=\"text\" class=\"hp-field\" id=\"idea-website\" name=\"website\" tabindex=\"-1\" autocomplete=\"off\" aria-hidden=\"true\">\n          <div class=\"settings-actions\">\n            <button type=\"button\" id=\"idea-send-btn\" class=\"topbar-action-btn primary\" data-i18n=\"ideasSend\">Enviar a Owner</button>\n          </div>\n          <p class=\"settings-hint\" id=\"idea-status\"></p>\n        </div>\n\n        <div id=\"pane-data\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabData\">Controles de datos</div>\n          <p class=\"settings-section-desc\" data-i18n=\"dataDesc\">Exportar, vaciar o no persistir el workspace en este navegador.</p>\n          <div class=\"settings-card\">\n            <label class=\"toggle-row\"><span data-i18n=\"sessionOnly\">No guardar chats al cerrar</span><input type=\"checkbox\" id=\"set-ephemeral\"></label>\n          </div>\n          <p class=\"settings-hint\" data-i18n=\"sessionOnlyHint\">Si está activo, el historial no se escribe en localStorage.</p>\n          <div class=\"settings-card\">\n            <div class=\"settings-actions\">\n              <button type=\"button\" id=\"btn-export-all\" class=\"topbar-action-btn\" data-i18n=\"exportAll\">Exportar chats y documentos</button>\n            </div>\n            <div class=\"settings-actions\">\n              <button type=\"button\" id=\"btn-clear-chats\" class=\"topbar-action-btn\" data-i18n=\"clearChats\">Vaciar historial de chats</button>\n            </div>\n            <div class=\"settings-actions\">\n              <button type=\"button\" id=\"btn-clear-docs\" class=\"topbar-action-btn\" data-i18n=\"empty\">Vaciar documentos</button>\n            </div>\n          </div>\n          <div class=\"settings-card\">\n            <div class=\"settings-actions\" style=\"display:flex;gap:6px;flex-wrap:wrap\">\n              <button type=\"button\" id=\"sync-now-btn\" class=\"topbar-action-btn\">立即同步</button>\n              <button type=\"button\" id=\"settings-logout-btn\" class=\"topbar-action-btn\">登出</button>\n            </div>\n            <p id=\"sync-status\" class=\"settings-hint\" style=\"min-height:18px\">同步尚未啟動</p>\n          </div>\n        </div>\n      </div>\n    </div>\n    <div class=\"modal-footer\">\n      <span id=\"settings-status\" class=\"settings-status\"></span>\n      <button class=\"settings-foot-btn\" data-modal=\"modal-settings\" type=\"button\" data-i18n=\"cancel\">Cancelar</button>\n      <button id=\"save-settings-btn\" class=\"settings-foot-btn primary\" type=\"button\" data-i18n=\"save\">Guardar</button>\n    </div>\n  </div>\n</div>\n\n<div class=\"modal-backdrop\" id=\"modal-profile\">\n  <div class=\"modal-card\">\n    <div class=\"modal-header\"><div class=\"modal-title\">Cuenta</div><button class=\"modal-close-btn\" data-modal=\"modal-profile\" type=\"button\">✕</button></div>\n    <div class=\"modal-body\" id=\"profile-modal-body\"></div>\n  </div>\n</div>\n\n<div class=\"modal-backdrop\" id=\"modal-knowledge\">\n  <div class=\"modal-card\">\n    <div class=\"modal-header\"><div class=\"modal-title\">Nuevo documento</div><button class=\"modal-close-btn\" data-modal=\"modal-knowledge\" type=\"button\">✕</button></div>\n    <div class=\"modal-body\">\n      <div class=\"form-group\">\n        <label class=\"form-label\">Título</label>\n        <input type=\"text\" id=\"train-title\" class=\"form-input\" placeholder=\"Especificación, notas, reglas…\">\n      </div>\n      <div class=\"form-group\">\n        <label class=\"form-label\">Contenido</label>\n        <textarea id=\"train-content\" class=\"form-textarea\" placeholder=\"Pega el texto…\"></textarea>\n      </div>\n      <div style=\"display:flex;justify-content:space-between;align-items:center\">\n        <input type=\"file\" id=\"import-rag-file\" style=\"display:none\" multiple accept=\".txt,.md,.json\">\n        <button type=\"button\" id=\"import-docs-btn\" class=\"topbar-action-btn\">Importar archivos</button>\n        <button id=\"save-knowledge-btn\" class=\"topbar-action-btn primary\" type=\"button\">Guardar</button>\n      </div>\n      <div>\n        <div style=\"display:flex;justify-content:space-between;margin-bottom:8px\">\n          <span class=\"form-label\">Activos (<span id=\"knowledge-count\">0</span>/20)</span>\n          <button id=\"clear-rag-btn\" type=\"button\" style=\"background:none;border:none;color:var(--red);font-size:0.72rem;cursor:pointer\">Vaciar</button>\n        </div>\n        <div id=\"knowledge-list-box\"></div>\n      </div>\n    </div>\n  </div>\n</div>\n\n<div class=\"cmd-overlay\" id=\"cmd-overlay\" role=\"dialog\" aria-label=\"Paleta de comandos\">\n  <div class=\"cmd-box\">\n    <input id=\"cmd-input\" type=\"search\" autocomplete=\"off\" placeholder=\"Ir a un comando…\" data-i18n=\"palettePh\" data-i18n-attr=\"placeholder\">\n    <div id=\"cmd-list\"></div>\n  </div>\n</div>\n\n</div>";
+  if (_root) _root.innerHTML = "<div class=\"ta-app\">\n<div class=\"ta-app\">\n  <div class=\"sidebar-overlay\" id=\"sidebar-overlay\"></div>\n  <aside class=\"ta-sidebar\" id=\"sidebar\">\n    <div class=\"sb-head\">\n      <a href=\"/\" class=\"brand-logo\">\n        <img src=\"/avatar.png\" alt=\"\" class=\"brand-avatar\">\n        <span class=\"brand-title\">Personal AI</span>\n      </a>\n      <button id=\"sidebar-close-btn\" class=\"icon-btn\" title=\"Cerrar\" style=\"display:none\">✕</button>\n    </div>\n    <button id=\"new-chat-btn\" class=\"new-chat-btn\" type=\"button\">\n      <span class=\"nc-main\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6\"/><path d=\"M18.4 2.6a2 2 0 0 1 2.9 2.9L12 14.8 8 16l1.2-4z\"/></svg><span data-i18n=\"newChat\">Nueva conversación</span></span>\n      <kbd class=\"hint\">Ctrl K</kbd>\n    </button>\n    <button id=\"temp-chat-btn\" class=\"new-chat-btn ghost\" type=\"button\">\n      <span class=\"nc-main\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><circle cx=\"12\" cy=\"12\" r=\"9\" stroke-dasharray=\"3 3\"/><path d=\"M12 7v5l3 2\"/></svg><span data-i18n=\"tempChat\">Chat temporal</span></span>\n      <kbd class=\"hint\">Ctrl ⇧ N</kbd>\n    </button>\n    <div class=\"history-search-box\">\n      <input type=\"search\" id=\"history-search\" class=\"history-search-input\" placeholder=\"Buscar…\" autocomplete=\"off\" data-i18n=\"searchPh\" data-i18n-attr=\"placeholder\">\n    </div>\n    <div class=\"sb-tabs\">\n      <button type=\"button\" class=\"sb-tab active\" data-view=\"chats\" id=\"tab-chats\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z\"/></svg><span data-i18n=\"chats\">Chats</span></button>\n      <button type=\"button\" class=\"sb-tab\" data-view=\"projects\" id=\"tab-projects\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg><span data-i18n=\"projects\">Proyectos</span></button>\n      <button type=\"button\" class=\"sb-tab\" data-view=\"docs\" id=\"tab-docs\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"/><path d=\"M14 3v5h5\"/><path d=\"M9 13h6M9 17h4\"/></svg><span data-i18n=\"docs\">Documentos</span></button>\n      \n      <button type=\"button\" class=\"sb-tab\" data-view=\"prompts\" id=\"tab-prompts\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M4 6h16M4 12h10M4 18h7\"/><path d=\"m17 15 3 3-3 3\"/></svg><span>Prompts</span></button>\n    </div>\n    <div class=\"history-list\" id=\"history-list\"></div>\n    <div class=\"sb-foot\">\n                  <button type=\"button\" id=\"open-settings-btn\" class=\"sb-link\" data-open-settings=\"pane-general\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z\"/></svg><span data-i18n=\"settings\">Ajustes</span></button>\n      \n      <div class=\"sb-account\">\n      <button type=\"button\" class=\"user-pill\" id=\"user-profile-pill\" data-open-settings=\"pane-account\">\n        <div style=\"display:flex;align-items:center;gap:8px;min-width:0\">\n          <div class=\"avatar-letter\" id=\"user-letter\">T</div>\n          <div style=\"min-width:0\">\n            <div class=\"user-info-name\" id=\"user-display-name\">Invitado</div>\n            <div class=\"user-info-tier\" id=\"user-display-tier\">50K tokens / día</div>\n          </div>\n        </div>\n      </button>\n      <div id=\"lang-select\" class=\"lang-picker\" aria-label=\"Language\"></div>\n      </div>\n    </div>\n  </aside>\n\n  <main class=\"ta-main\">\n    <header class=\"ta-topbar\">\n      <div class=\"topbar-left\">\n        <button id=\"sidebar-toggle-btn\" class=\"icon-btn menu-toggle-btn\" type=\"button\" title=\"Menú\" aria-label=\"Menú\">\n          <svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><line x1=\"3\" y1=\"12\" x2=\"21\" y2=\"12\"/><line x1=\"3\" y1=\"6\" x2=\"21\" y2=\"6\"/><line x1=\"3\" y1=\"18\" x2=\"21\" y2=\"18\"/></svg>\n        </button>\n        <div class=\"model-picker\" id=\"model-picker\">\n          <button type=\"button\" class=\"model-picker-btn\" id=\"model-picker-btn\" aria-haspopup=\"listbox\" aria-expanded=\"false\">\n            <span class=\"model-picker-label\" id=\"model-picker-label\">GPT OSS 120B</span>\n            <svg class=\"model-picker-caret\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"><path d=\"M6 9l6 6 6-6\"/></svg>\n          </button>\n          <div class=\"model-menu\" id=\"model-menu\" role=\"listbox\"></div>\n        </div>\n      </div>\n      <div class=\"topbar-right\">\n        <span id=\"temp-badge\" class=\"temp-badge\" data-i18n=\"tempOn\">Temporal</span>\n        <button id=\"cmd-open-btn\" class=\"topbar-icon-btn\" type=\"button\" title=\"Ctrl+P\" data-i18n=\"commandPalette\" data-i18n-attr=\"title\" aria-label=\"Comandos\">\n          <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.5\"/></svg>\n        </button>\n        <button id=\"export-chat-btn\" class=\"topbar-icon-btn\" type=\"button\" data-i18n=\"exportChat\" data-i18n-attr=\"title\" aria-label=\"Exportar\">\n          <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3v12\"/><path d=\"M8 11l4 4 4-4\"/><path d=\"M5 21h14\"/></svg>\n        </button>\n        <button id=\"topbar-auth-btn\" class=\"topbar-action-btn primary\" type=\"button\" data-open-settings=\"pane-general\">\n          <span class=\"avatar-letter\" id=\"topbar-letter\" hidden>T</span>\n          <span id=\"topbar-auth-text\">設定</span>\n        </button>\n      </div>\n    </header>\n    <div class=\"ta-chat-scroll\" id=\"chat-scroll\">\n      <div class=\"ta-chat-wrap\" id=\"chat-container\"></div>\n    </div>\n    <footer class=\"ta-input-dock\">\n      <div class=\"capsule-box\">\n        <div id=\"attached-badge\" class=\"file-badge-preview\">\n          <img id=\"attached-thumb\" alt=\"\" hidden>\n          <span id=\"attached-kind\">Documento</span>\n          <span id=\"attached-name\">documento.txt</span>\n          <button id=\"remove-file-btn\" type=\"button\" style=\"background:none;border:none;color:var(--dim);cursor:pointer\">✕</button>\n        </div>\n        <textarea id=\"prompt-input\" class=\"prompt-textarea\" rows=\"1\" placeholder=\"Pregunta lo que quieras…\" data-i18n=\"askPh\" data-i18n-attr=\"placeholder\"></textarea>\n        <div class=\"dock-controls\">\n          <div class=\"dock-plus\" id=\"dock-plus\">\n            <button type=\"button\" class=\"dock-btn dock-plus-btn\" id=\"dock-plus-btn\" aria-haspopup=\"menu\" aria-expanded=\"false\" aria-controls=\"dock-plus-menu\" aria-label=\"Más opciones\" title=\"Más opciones\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></button>\n            <div class=\"dock-plus-menu\" id=\"dock-plus-menu\" role=\"menu\" hidden>\n              <button type=\"button\" role=\"menuitem\" class=\"dpm-item\" data-dpm=\"attach\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><path d=\"M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48\"/></svg><span class=\"dpm-label\">Adjuntar archivo</span></button>\n              <button type=\"button\" role=\"menuitemcheckbox\" aria-checked=\"false\" class=\"dpm-item\" data-dpm=\"web\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18\"/></svg><span class=\"dpm-label\">Buscar en la web</span><span class=\"dpm-check\" aria-hidden=\"true\">✓</span></button>\n              <button type=\"button\" role=\"menuitemcheckbox\" aria-checked=\"false\" class=\"dpm-item\" data-dpm=\"image\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" class=\"sb-ico\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><circle cx=\"9\" cy=\"10\" r=\"2\"/><path d=\"m21 16-5-5-9 9\"/></svg><span class=\"dpm-label\">Crear imagen</span><span class=\"dpm-check\" aria-hidden=\"true\">✓</span></button>\n                          </div>\n          </div>\n          <div class=\"control-pills\">\n            <button id=\"web-search-pill\" class=\"dock-pill\" type=\"button\" data-i18n=\"searchWeb\">Buscar</button>\n            <button id=\"image-gen-pill\" class=\"dock-pill\" type=\"button\" data-i18n=\"image\">Imagen</button>\n            <div class=\"length-segmented-pill\" style=\"display:none;\" title=\"Longitud\"><button class=\"length-opt-btn active\" data-len=\"normal\" id=\"len-btn-normal\" type=\"button\" data-i18n=\"normal\">Normal</button></div>\n          </div>\n          <div class=\"dock-action-buttons\">\n            <input type=\"file\" id=\"file-uploader\" style=\"display:none\" accept=\"image/jpeg,image/png,image/webp,image/gif,.txt,.md,.json,.js,.ts,.py,.csv,.log,.html,.css\">\n            <button id=\"attach-file-btn\" class=\"dock-btn\" type=\"button\" title=\"Adjuntar archivo o imagen\" aria-label=\"Adjuntar\" data-i18n=\"attach\" data-i18n-attr=\"title\">\n              <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48\"/></svg>\n            </button>\n            <button id=\"mic-btn\" class=\"dock-btn\" type=\"button\" title=\"Grabar voz\" aria-label=\"Grabar voz\" data-i18n=\"dictate\" data-i18n-attr=\"title\">\n              <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"2\" width=\"6\" height=\"12\" rx=\"3\"/><path d=\"M5 11a7 7 0 0 0 14 0\"/><path d=\"M12 18v4\"/><path d=\"M8 22h8\"/></svg>\n            </button>\n            <button id=\"speak-last-btn\" class=\"dock-btn\" type=\"button\" title=\"Leer respuesta\" aria-label=\"Leer\" data-i18n=\"speakLast\" data-i18n-attr=\"title\">\n              <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M11 5L6 9H3v6h3l5 4V5z\"/><path d=\"M15.5 8.5a5 5 0 0 1 0 7\"/><path d=\"M18.5 6a8.5 8.5 0 0 1 0 12\"/></svg>\n            </button>\n            <button id=\"send-btn\" class=\"send-submit-btn\" type=\"button\" title=\"Enviar\">\n              <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\"><path d=\"M12 19V5M5 12l7-7 7 7\"/></svg>\n            </button>\n          </div>\n        </div>\n      </div>\n      <p class=\"disclaimer\"><span data-i18n=\"disclaimer\">Personal AI puede equivocarse.</span></p>\n    </footer>\n  </main>\n\n  <aside class=\"art-panel\" id=\"art-panel\" aria-label=\"Artefacto\">\n    <div class=\"art-head\">\n      <div class=\"art-head-top\">\n        <div class=\"art-title-wrap\">\n          <textarea class=\"art-title-input\" id=\"art-title\" maxlength=\"72\" rows=\"2\" placeholder=\"Título corto (máx. 72)\" aria-label=\"Título\">Artifact</textarea>\n          <div class=\"art-title-count\" id=\"art-title-count\">0/72</div>\n        </div>\n        <button type=\"button\" class=\"icon-btn\" id=\"art-close-btn\" title=\"Cerrar\" aria-label=\"Cerrar\">✕</button>\n      </div>\n      <div class=\"art-toolbar\">\n        <select id=\"art-format\" class=\"art-format\" title=\"Formato\" aria-label=\"Formato del artifact\"></select>\n        <button type=\"button\" class=\"topbar-action-btn\" id=\"art-copy-btn\" data-art-i18n=\"copy\">Copiar</button>\n        <button type=\"button\" class=\"topbar-action-btn\" id=\"art-save-btn\">Guardar</button>\n      </div>\n      <div class=\"art-viewbar\">\n        <div class=\"art-view\" role=\"tablist\" aria-label=\"Vista\">\n          <button type=\"button\" class=\"art-view-btn active\" role=\"tab\" aria-selected=\"true\" data-view=\"preview\" id=\"art-view-preview\" data-art-i18n=\"preview\">Vista previa</button>\n          <button type=\"button\" class=\"art-view-btn\" role=\"tab\" aria-selected=\"false\" data-view=\"code\" id=\"art-view-code\" data-art-i18n=\"code\">Código</button>\n        </div>\n        <select id=\"art-version\" class=\"art-format art-version\" aria-label=\"Versión\" hidden></select>\n        <span class=\"art-viewbar-spacer\"></span>\n        <button type=\"button\" class=\"icon-btn art-icon-btn\" id=\"art-download-btn\" data-art-i18n-title=\"download\" title=\"Descargar\" aria-label=\"Descargar\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 4v11\"/><path d=\"m7 10 5 5 5-5\"/><path d=\"M5 20h14\"/></svg></button>\n        <button type=\"button\" class=\"icon-btn art-icon-btn\" id=\"art-fs-btn\" data-art-i18n-title=\"fullscreen\" title=\"Pantalla completa\" aria-label=\"Pantalla completa\" aria-pressed=\"false\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9V4h5\"/><path d=\"M20 9V4h-5\"/><path d=\"M4 15v5h5\"/><path d=\"M20 15v5h-5\"/></svg></button>\n      </div>\n      \n    </div>\n    <div class=\"art-extras\">\n      <button type=\"button\" class=\"art-extras-toggle\" id=\"art-extras-toggle\">Fuentes, recursos y widgets</button>\n      <div class=\"art-extras-body\" id=\"art-extras-body\" hidden>\n        <label for=\"art-sources\">Fuentes propias (una por línea: Título | https://…)</label>\n        <textarea id=\"art-sources\" placeholder=\"SEC 10-K | https://www.sec.gov/…\"></textarea>\n        <label for=\"art-resources\">Recursos (una por línea)</label>\n        <textarea id=\"art-resources\" placeholder=\"Modelo Excel | https://…\"></textarea>\n        <label for=\"art-widgets\">Widgets (quote:MSFT · note:texto · https://…)</label>\n        <textarea id=\"art-widgets\" placeholder=\"quote:MSFT&#10;note:Riesgo: múltiplo elevado&#10;https://www.tradingview.com/symbols/MSFT/\"></textarea>\n      </div>\n    </div>\n    <div class=\"art-split\" id=\"art-split\">\n      <textarea class=\"art-editor\" id=\"art-editor\" spellcheck=\"false\" placeholder=\"Escribe aquí el contenido. La IA genera una base; tú la editas.\" aria-label=\"Editor del artifact\"></textarea>\n      <iframe class=\"art-preview\" id=\"art-preview\" hidden sandbox=\"allow-scripts allow-forms allow-modals allow-popups\" referrerpolicy=\"no-referrer\" title=\"Vista del artifact\"></iframe>\n    </div>\n  </aside>\n</div>\n\n<div class=\"modal-backdrop\" id=\"modal-settings\">\n  <div class=\"modal-card settings-wide\">\n    <div class=\"modal-header\"><div class=\"modal-title\" data-i18n=\"settings\">Ajustes</div><button class=\"modal-close-btn\" data-modal=\"modal-settings\" type=\"button\" aria-label=\"Cerrar\" data-i18n=\"close\" data-i18n-attr=\"aria-label\">✕</button></div>\n    <div class=\"settings-layout\">\n      <nav class=\"settings-nav\" aria-label=\"設定\">\n        <div class=\"settings-nav-label\">應用程式</div>\n        <button type=\"button\" class=\"settings-nav-btn active\" data-pane=\"pane-general\" data-i18n=\"tabGeneral\">一般</button>\n        <button type=\"button\" class=\"settings-nav-btn\" data-pane=\"pane-providers\">供應商</button>\n        <button type=\"button\" class=\"settings-nav-btn\" data-pane=\"pane-appearance\" data-i18n=\"tabAppearance\">外觀</button>\n        <button type=\"button\" class=\"settings-nav-btn\" data-pane=\"pane-behavior\" data-i18n=\"tabBehavior\">行為</button>\n        <button type=\"button\" class=\"settings-nav-btn\" data-pane=\"pane-customize\" data-i18n=\"tabCustomize\">個人化</button>\n        <div class=\"settings-nav-label\">資料</div>\n        <button type=\"button\" class=\"settings-nav-btn\" data-pane=\"pane-data\" data-i18n=\"tabData\">資料控制</button>\n      </nav>\n      <div class=\"settings-main\">\n        <div id=\"pane-general\" class=\"settings-pane active\">\n          <div class=\"settings-section-title\" data-i18n=\"tabGeneral\">General</div>\n          <p class=\"settings-section-desc\" data-i18n=\"generalDesc\">Idioma, modelo por defecto y longitud de respuesta.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"language\">Idioma</label>\n            <div id=\"set-lang\" class=\"lang-picker open-down\"></div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"setDefaultModel\">Modelo por defecto</label>\n            <select id=\"set-default-model\" class=\"form-input\"></select>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"setDefaultLength\">Longitud por defecto</label>\n            <div class=\"choice-row\" id=\"set-default-length\">\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_len_mode\" data-value=\"corto\" data-i18n=\"short\">Corto</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_len_mode\" data-value=\"normal\" data-i18n=\"normal\">Normal</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_len_mode\" data-value=\"extendido\" data-i18n=\"long\">Largo</button>\n            </div>\n          </div>\n          <p class=\"settings-hint\">Personal AI · 2026.2 · ai.personal-ai.workers.dev</p>\n        </div>\n\n        <div id=\"pane-account\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabAccount\">Cuenta</div>\n          <p class=\"settings-section-desc\" data-i18n=\"accountDesc\">Tu perfil, plan, correos y acceso.</p>\n          <div id=\"account-guest\" style=\"display:none;text-align:center;padding:18px 8px;\">\n            <p style=\"font-size:0.84rem;color:var(--muted);margin-bottom:12px\" data-i18n=\"needLogin\">Inicia sesión para sincronizar la cuenta.</p>\n            <a href=\"/login\" class=\"topbar-action-btn primary\" style=\"text-decoration:none\" data-i18n=\"signIn\">Acceder</a>\n          </div>\n          <div id=\"account-authed\">\n            <div class=\"settings-card\">\n              <div class=\"settings-kv\">\n                <div class=\"settings-kv-label\" data-i18n=\"displayName\">Nombre</div>\n                <div class=\"settings-kv-control\">\n                  <input type=\"text\" id=\"set-display-name\" class=\"form-input\" maxlength=\"80\" autocomplete=\"name\">\n                </div>\n              </div>\n              <div class=\"settings-kv\">\n                <div class=\"settings-kv-label\" data-i18n=\"emailLabel\">Correo</div>\n                <div class=\"settings-kv-value\" id=\"account-email-display\"></div>\n              </div>\n              <div class=\"settings-kv\">\n                <div class=\"settings-kv-label\" data-i18n=\"tabPlan\">Plan y facturación</div>\n                <span class=\"plan-badge\" id=\"account-plan-badge\">FREE</span>\n              </div>\n            </div>\n\n            <div class=\"settings-block-title\" data-i18n=\"emailPrefs\">Correos</div>\n            <p class=\"settings-hint\" data-i18n=\"emailsHint\">Elige qué correos quieres recibir en tu bandeja.</p>\n            <div class=\"settings-card\">\n              <label class=\"toggle-row\"><span data-i18n=\"notifyProduct\">Novedades de producto</span><input type=\"checkbox\" id=\"set-notify-product\" checked></label>\n              <label class=\"toggle-row\"><span data-i18n=\"notifySecurity\">Alertas de seguridad</span><input type=\"checkbox\" id=\"set-notify-security\" checked></label>\n              <label class=\"toggle-row\"><span data-i18n=\"notifyDigest\">Resumen ocasional</span><input type=\"checkbox\" id=\"set-notify-digest\"></label>\n              <div class=\"settings-actions\">\n                <button type=\"button\" id=\"test-email-btn\" class=\"topbar-action-btn\" data-i18n=\"testEmail\">Enviar correo de prueba</button>\n              </div>\n            </div>\n\n            <p id=\"oauth-pass-hint\" class=\"settings-hint\" style=\"display:none;margin-top:16px\"></p>\n            <div id=\"password-fields\">\n              <div class=\"settings-block-title\" data-i18n=\"passwordSection\">Contraseña</div>\n              <div class=\"settings-card\">\n                <div class=\"form-group\">\n                  <label class=\"form-label\" data-i18n=\"currentPassword\">Contraseña actual</label>\n                  <input type=\"password\" id=\"set-cur-pass\" class=\"form-input\" autocomplete=\"current-password\">\n                </div>\n                <div class=\"form-group\">\n                  <label class=\"form-label\" data-i18n=\"newPassword\">Nueva contraseña</label>\n                  <input type=\"password\" id=\"set-new-pass\" class=\"form-input\" autocomplete=\"new-password\" minlength=\"6\">\n                </div>\n                <div class=\"settings-actions\">\n                  <button type=\"button\" id=\"change-pass-btn\" class=\"topbar-action-btn primary\" data-i18n=\"changePassword\">Cambiar contraseña</button>\n                </div>\n              </div>\n            </div>\n\n            <div class=\"settings-block-title\" data-i18n=\"sessionTitle\">Sesión</div>\n            <div class=\"settings-card\" style=\"padding:16px\">\n              <div class=\"settings-kv-label\" data-i18n=\"logout\">Cerrar sesión</div>\n              <p class=\"settings-kv-sub\" data-i18n=\"sessionHint\">Cierra la sesión en este navegador. El historial local se queda.</p>\n              <button type=\"button\" id=\"settings-logout-btn-legacy\" class=\"logout-big-btn\" data-i18n=\"logout\">Cerrar sesión</button>\n            </div>\n          </div>\n        </div>\n\n        <div id=\"pane-appearance\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabAppearance\">Apariencia</div>\n          <p class=\"settings-section-desc\" data-i18n=\"appearanceDesc\">Tema, tamaño de letra y densidad de la interfaz.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"appearanceTheme\">Tema</label>\n            <div class=\"theme-grid\">\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"dark\"><span class=\"theme-swatch\" data-swatch=\"dark\"></span><span data-i18n=\"themeDark\">Oscuro</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"gray\"><span class=\"theme-swatch\" data-swatch=\"gray\"></span><span data-i18n=\"themeGray\">Gris</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"dim\"><span class=\"theme-swatch\" data-swatch=\"dim\"></span><span data-i18n=\"themeDim\">Carbón</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"navy\"><span class=\"theme-swatch\" data-swatch=\"navy\"></span><span data-i18n=\"themeNavy\">Marino</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"light\"><span class=\"theme-swatch\" data-swatch=\"light\"></span><span data-i18n=\"themeLight\">Claro</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"paper\"><span class=\"theme-swatch\" data-swatch=\"paper\"></span><span data-i18n=\"themePaper\">Papel</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"hacker\"><span class=\"theme-swatch\" data-swatch=\"hacker\"></span><span>Hacker</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"cyberpunk\"><span class=\"theme-swatch\" data-swatch=\"cyberpunk\"></span><span>Cyberpunk</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"sunset\"><span class=\"theme-swatch\" data-swatch=\"sunset\"></span><span>Sunset</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"ocean\"><span class=\"theme-swatch\" data-swatch=\"ocean\"></span><span>Ocean</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"forest\"><span class=\"theme-swatch\" data-swatch=\"forest\"></span><span>Forest</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"rose\"><span class=\"theme-swatch\" data-swatch=\"rose\"></span><span>Rose</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"lavender\"><span class=\"theme-swatch\" data-swatch=\"lavender\"></span><span>Lavender</span></button>\n              <button type=\"button\" class=\"theme-card\" data-pref=\"ta_theme\" data-value=\"system\"><span class=\"theme-swatch\" data-swatch=\"system\"></span><span data-i18n=\"themeSystem\">Sistema</span></button>\n            </div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"accentLabel\">Acento</label>\n            <div class=\"accent-row\">\n              <button type=\"button\" class=\"accent-dot accent-auto\" data-pref=\"ta_accent\" data-value=\"auto\" title=\"Neutro\" aria-label=\"Neutro\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#38bdf8\" style=\"background:#38bdf8\" title=\"Cielo\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#a1a1aa\" style=\"background:#a1a1aa\" title=\"Gris\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#34d399\" style=\"background:#34d399\" title=\"Menta\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#2dd4bf\" style=\"background:#2dd4bf\" title=\"Teal\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#818cf8\" style=\"background:#818cf8\" title=\"Índigo\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#a78bfa\" style=\"background:#a78bfa\" title=\"Violeta\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#f59e0b\" style=\"background:#f59e0b\" title=\"Ámbar\"></button>\n              <button type=\"button\" class=\"accent-dot\" data-pref=\"ta_accent\" data-value=\"#fb7185\" style=\"background:#fb7185\" title=\"Rosa\"></button>\n            </div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"fontSize\">Tamaño de letra</label>\n            <div class=\"choice-row\">\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_font\" data-value=\"sm\" data-i18n=\"fontSm\">Compacto</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_font\" data-value=\"md\" data-i18n=\"fontMd\">Normal</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_font\" data-value=\"lg\" data-i18n=\"fontLg\">Grande</button>\n            </div>\n          </div>\n          <div class=\"settings-card\">\n            <label class=\"toggle-row\"><span data-i18n=\"compactSidebar\">Barra lateral compacta</span><input type=\"checkbox\" id=\"set-compact-sb\"></label>\n            <label class=\"toggle-row\"><span data-i18n=\"reduceMotion\">Reducir movimiento</span><input type=\"checkbox\" id=\"set-reduce-motion\"></label>\n          </div>\n        </div>\n\n        <div id=\"pane-behavior\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabBehavior\">Comportamiento</div>\n          <p class=\"settings-section-desc\" data-i18n=\"behaviorDesc\">Cómo envía, busca y confirma el workspace.</p>\n          <div class=\"settings-card\">\n            <label class=\"toggle-row\"><span data-i18n=\"enterToSend\">Enter envía el mensaje</span><input type=\"checkbox\" id=\"set-enter-send\" checked></label>\n            <label class=\"toggle-row\"><span data-i18n=\"autoSearch\">Buscar en la web por defecto</span><input type=\"checkbox\" id=\"set-auto-search\"></label>\n            <label class=\"toggle-row\"><span data-i18n=\"showTimestamps\">Mostrar hora en los mensajes</span><input type=\"checkbox\" id=\"set-show-time\"></label>\n            <label class=\"toggle-row\"><span data-i18n=\"confirmDeleteChat\">Confirmar al borrar un chat</span><input type=\"checkbox\" id=\"set-confirm-del\" checked></label>\n            <label class=\"toggle-row\"><span data-i18n=\"autoRead\">Leer en voz alta las respuestas</span><input type=\"checkbox\" id=\"set-auto-read\"></label>\n          </div>\n          <p class=\"settings-hint\" data-i18n=\"autoReadHint\">Al terminar cada respuesta, el navegador la lee. También puedes pulsar el altavoz del compositor o «Escuchar» en cada mensaje.</p>\n        </div>\n\n        <div id=\"pane-customize\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabCustomize\">Personalizar</div>\n          <p class=\"settings-section-desc\" data-i18n=\"customizeDesc\">Instrucciones propias y tono de respuesta.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"toneLabel\">Tono</label>\n            <div class=\"choice-row\">\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_tone\" data-value=\"auto\" data-i18n=\"toneAuto\">Auto</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_tone\" data-value=\"direct\" data-i18n=\"toneDirect\">Directo</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_tone\" data-value=\"technical\" data-i18n=\"toneTechnical\">Técnico</button>\n              <button type=\"button\" class=\"choice-pill\" data-pref=\"ta_tone\" data-value=\"concise\" data-i18n=\"toneConcise\">Conciso</button>\n            </div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"systemPrompt\">Instrucción de sistema</label>\n            <textarea id=\"custom-system-prompt\" class=\"form-textarea\" placeholder=\"Cómo debe responder Personal AI…\"></textarea>\n          </div>\n          <div class=\"settings-card\">\n            <label class=\"toggle-row\"><span data-i18n=\"useDocsContext\">Usar documentos como memoria</span><input type=\"checkbox\" id=\"set-use-docs\" checked></label>\n            <label class=\"toggle-row\"><span data-i18n=\"adaptOn\">Adaptarse a mí</span><input type=\"checkbox\" id=\"set-adapt\" checked></label>\n          </div>\n          <p class=\"settings-hint\" data-i18n=\"adaptHint\">Personal recuerda cómo te llamas, lo que le pides que no olvide y los temas que sueles tratar. Dile «recuerda que…» o «olvida eso».</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"adaptSummary\">Lo que sé de ti</label>\n            <div id=\"adapt-summary\" class=\"settings-hint\">—</div>\n          </div>\n          <div id=\"adapt-notes\" class=\"settings-card\"></div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"adaptAdd\">Añadir un hecho</label>\n            <div style=\"display:flex;gap:6px\">\n              <input type=\"text\" id=\"adapt-note-input\" class=\"form-input\" style=\"flex:1\" data-i18n=\"adaptAddPh\" data-i18n-attr=\"placeholder\" placeholder=\"Recuerda que…\">\n              <button type=\"button\" id=\"adapt-note-btn\" class=\"topbar-action-btn primary\" data-i18n=\"save\">Guardar</button>\n            </div>\n          </div>\n          <button type=\"button\" id=\"adapt-forget-btn\" class=\"topbar-action-btn\" data-i18n=\"adaptForget\">Olvidar mi perfil</button>\n        </div>\n\n        \n        <div id=\"pane-providers\" class=\"settings-pane\">\n          <div class=\"settings-section-title\">供應商</div>\n          <p class=\"settings-section-desc\">連線到任何 OpenAI 相容的 <code>/chat/completions</code> 服務。API Key 在伺服器端加密保存，不會回傳到瀏覽器；自建模型可以不填 Key。</p>\n          <p class=\"settings-hint\" id=\"server-default-hint\">若部署設定了 <code>GROQ_API_KEY</code>，未新增供應商時會使用伺服器預設 Groq。</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\">使用中的供應商</label>\n            <div style=\"display:flex;gap:6px\">\n              <select id=\"provider-active-select\" class=\"form-input\" style=\"flex:1\"></select>\n              <button type=\"button\" id=\"provider-new-btn\" class=\"topbar-action-btn\">新增</button>\n            </div>\n          </div>\n          <div class=\"settings-card\">\n            <div class=\"settings-kv\">\n              <div class=\"settings-kv-label\">名稱</div>\n              <div class=\"settings-kv-control\"><input id=\"provider-name\" class=\"form-input\" type=\"text\" maxlength=\"60\" placeholder=\"Groq\"></div>\n            </div>\n            <div class=\"settings-kv\">\n              <div class=\"settings-kv-label\">Base URL</div>\n              <div class=\"settings-kv-control\"><input id=\"provider-base\" class=\"form-input\" type=\"url\" placeholder=\"https://api.groq.com/openai/v1\" autocomplete=\"off\"></div>\n            </div>\n            <div class=\"settings-kv\">\n              <div class=\"settings-kv-label\">API Key</div>\n              <div class=\"settings-kv-control\"><input id=\"provider-key\" class=\"form-input\" type=\"password\" placeholder=\"sk-…（自建模型可留空）\" autocomplete=\"off\"><label class=\"settings-hint\" style=\"display:flex;gap:6px;align-items:center;margin-top:4px\"><input type=\"checkbox\" id=\"provider-clear-key\" disabled> 清除已儲存的 Key</label></div>\n            </div>\n            <div class=\"settings-kv\">\n              <div class=\"settings-kv-label\">模型（多個以逗號分隔）</div>\n              <div class=\"settings-kv-control\"><input id=\"provider-model\" class=\"form-input\" type=\"text\" list=\"provider-model-list\" placeholder=\"openai/gpt-oss-120b\" autocomplete=\"off\"><datalist id=\"provider-model-list\"></datalist></div>\n            </div>\n            <div class=\"settings-actions\" style=\"display:flex;gap:6px;flex-wrap:wrap\">\n              <button type=\"button\" id=\"provider-test-btn\" class=\"topbar-action-btn\">測試連線</button>\n              <button type=\"button\" id=\"provider-models-btn\" class=\"topbar-action-btn\">抓取模型</button>\n              <button type=\"button\" id=\"provider-save-btn\" class=\"topbar-action-btn primary\">儲存</button>\n              <button type=\"button\" id=\"provider-delete-btn\" class=\"topbar-action-btn btn-danger\">刪除</button>\n            </div>\n            <p id=\"provider-status\" class=\"settings-hint\" style=\"min-height:18px\"></p>\n          </div>\n          <p class=\"settings-hint\">只允許公開 HTTPS 位址。localhost、私有 IP、<code>.local</code>、<code>.internal</code> 會被拒絕。</p>\n        </div>\n\n        <div id=\"pane-plan\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabPlan\">Plan y facturación</div>\n          <p class=\"settings-section-desc\" data-i18n=\"planDesc\">Tu plan actual. El cobro con tarjeta llegará cuando se active Stripe.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"currentPlan\">Plan actual</label>\n            <div><span class=\"plan-badge\" id=\"plan-current-badge\">FREE</span></div>\n          </div>\n          <p class=\"settings-hint\" data-i18n=\"planHint\">Free: 50.000 tokens/día. Enterprise: sin tope (cuentas propias). BYOK: clave Groq en el navegador, sin cuota.</p>\n          <a class=\"topbar-action-btn\" href=\"mailto:owner@personal-ai.workers.dev?subject=Personal%20AI%20Enterprise\" style=\"text-decoration:none;width:fit-content\" data-i18n=\"planContact\">Contactar para Enterprise</a>\n        </div>\n\n        <div id=\"pane-usage\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabUsage\">Uso</div>\n          <p class=\"settings-section-desc\" data-i18n=\"usageDesc\">Consumo diario y cuándo se reinicia el cupo.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"usageUsed\">Tokens de hoy</label>\n            <div id=\"usage-used\" style=\"font-weight:650\">—</div>\n            <div class=\"usage-bar\"><span id=\"usage-bar-fill\"></span></div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"usageReset\">Reinicio disponible</label>\n            <div id=\"usage-reset\">00:00 UTC</div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"opsToday\">Actividad de hoy (servicio)</label>\n            <div class=\"ops-grid\">\n              <div class=\"ops-stat\"><b id=\"ops-chats\">—</b><span data-i18n=\"opsChats\">Chats</span></div>\n              <div class=\"ops-stat\"><b id=\"ops-images\">—</b><span data-i18n=\"opsImages\">Imágenes</span></div>\n              <div class=\"ops-stat\"><b id=\"ops-voice\">—</b><span data-i18n=\"opsVoice\">Voz</span></div>\n              <div class=\"ops-stat\"><b id=\"ops-ideas\">—</b><span data-i18n=\"opsIdeas\">Ideas</span></div>\n            </div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"byok\">Clave Groq (BYOK)</label>\n            <input type=\"password\" id=\"user-groq-key\" class=\"form-input\" placeholder=\"gsk_…\" autocomplete=\"off\">\n            <span class=\"settings-hint\" data-i18n=\"byokHint\">Solo se guarda en este navegador.</span>\n          </div>\n        </div>\n\n        <div id=\"pane-ideas\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"ideas\">Qué quieres añadir</div>\n          <p class=\"settings-section-desc\" data-i18n=\"ideasDesc\">Cuéntale a Owner qué función, corrección o mejora quieres. Llega a owner@personal-ai.workers.dev y entra en el informe diario.</p>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"ideaCat\">Tipo</label>\n            <div class=\"choice-row\">\n              <button type=\"button\" class=\"choice-pill active\" data-idea-cat=\"feat\" data-i18n=\"ideaCatFeat\">Función</button>\n              <button type=\"button\" class=\"choice-pill\" data-idea-cat=\"fix\" data-i18n=\"ideaCatFix\">Corrección</button>\n              <button type=\"button\" class=\"choice-pill\" data-idea-cat=\"other\" data-i18n=\"ideaCatOther\">Otro</button>\n            </div>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"ideas\">Idea</label>\n            <textarea id=\"idea-text\" class=\"form-input\" rows=\"5\" data-i18n=\"ideasPh\" data-i18n-attr=\"placeholder\" placeholder=\"Quiero que la IA…\"></textarea>\n          </div>\n          <div class=\"form-group\">\n            <label class=\"form-label\" data-i18n=\"ideasEmail\">Tu email (opcional)</label>\n            <input type=\"email\" id=\"idea-email\" class=\"form-input\" autocomplete=\"email\">\n          </div>\n          <input type=\"text\" class=\"hp-field\" id=\"idea-website\" name=\"website\" tabindex=\"-1\" autocomplete=\"off\" aria-hidden=\"true\">\n          <div class=\"settings-actions\">\n            <button type=\"button\" id=\"idea-send-btn\" class=\"topbar-action-btn primary\" data-i18n=\"ideasSend\">Enviar a Owner</button>\n          </div>\n          <p class=\"settings-hint\" id=\"idea-status\"></p>\n        </div>\n\n        <div id=\"pane-data\" class=\"settings-pane\">\n          <div class=\"settings-section-title\" data-i18n=\"tabData\">Controles de datos</div>\n          <p class=\"settings-section-desc\" data-i18n=\"dataDesc\">Exportar, vaciar o no persistir el workspace en este navegador.</p>\n          <div class=\"settings-card\">\n            <label class=\"toggle-row\"><span data-i18n=\"sessionOnly\">No guardar chats al cerrar</span><input type=\"checkbox\" id=\"set-ephemeral\"></label>\n          </div>\n          <p class=\"settings-hint\" data-i18n=\"sessionOnlyHint\">Si está activo, el historial no se escribe en localStorage.</p>\n          <div class=\"settings-card\">\n            <div class=\"settings-actions\">\n              <button type=\"button\" id=\"btn-export-all\" class=\"topbar-action-btn\" data-i18n=\"exportAll\">Exportar chats y documentos</button>\n            </div>\n            <div class=\"settings-actions\">\n              <button type=\"button\" id=\"btn-clear-chats\" class=\"topbar-action-btn\" data-i18n=\"clearChats\">Vaciar historial de chats</button>\n            </div>\n            <div class=\"settings-actions\">\n              <button type=\"button\" id=\"btn-clear-docs\" class=\"topbar-action-btn\" data-i18n=\"empty\">Vaciar documentos</button>\n            </div>\n          </div>\n          <div class=\"settings-card\">\n            <div class=\"settings-actions\" style=\"display:flex;gap:6px;flex-wrap:wrap\">\n              <button type=\"button\" id=\"sync-now-btn\" class=\"topbar-action-btn\">與伺服器同步</button>\n              <button type=\"button\" id=\"settings-logout-btn\" class=\"topbar-action-btn\">登出</button>\n            </div>\n            <p id=\"sync-status\" class=\"settings-hint\" style=\"min-height:18px\">尚未連線伺服器</p>\n          </div>\n        </div>\n      </div>\n    </div>\n    <div class=\"modal-footer\">\n      <span id=\"settings-status\" class=\"settings-status\"></span>\n      <button class=\"settings-foot-btn\" data-modal=\"modal-settings\" type=\"button\" data-i18n=\"cancel\">Cancelar</button>\n      <button id=\"save-settings-btn\" class=\"settings-foot-btn primary\" type=\"button\" data-i18n=\"save\">Guardar</button>\n    </div>\n  </div>\n</div>\n\n<div class=\"modal-backdrop\" id=\"modal-profile\">\n  <div class=\"modal-card\">\n    <div class=\"modal-header\"><div class=\"modal-title\">Cuenta</div><button class=\"modal-close-btn\" data-modal=\"modal-profile\" type=\"button\">✕</button></div>\n    <div class=\"modal-body\" id=\"profile-modal-body\"></div>\n  </div>\n</div>\n\n<div class=\"modal-backdrop\" id=\"modal-knowledge\">\n  <div class=\"modal-card\">\n    <div class=\"modal-header\"><div class=\"modal-title\">Nuevo documento</div><button class=\"modal-close-btn\" data-modal=\"modal-knowledge\" type=\"button\">✕</button></div>\n    <div class=\"modal-body\">\n      <div class=\"form-group\">\n        <label class=\"form-label\">Título</label>\n        <input type=\"text\" id=\"train-title\" class=\"form-input\" placeholder=\"Especificación, notas, reglas…\">\n      </div>\n      <div class=\"form-group\">\n        <label class=\"form-label\">Contenido</label>\n        <textarea id=\"train-content\" class=\"form-textarea\" placeholder=\"Pega el texto…\"></textarea>\n      </div>\n      <div style=\"display:flex;justify-content:space-between;align-items:center\">\n        <input type=\"file\" id=\"import-rag-file\" style=\"display:none\" multiple accept=\".txt,.md,.json\">\n        <button type=\"button\" id=\"import-docs-btn\" class=\"topbar-action-btn\">Importar archivos</button>\n        <button id=\"save-knowledge-btn\" class=\"topbar-action-btn primary\" type=\"button\">Guardar</button>\n      </div>\n      <div>\n        <div style=\"display:flex;justify-content:space-between;margin-bottom:8px\">\n          <span class=\"form-label\">Activos (<span id=\"knowledge-count\">0</span>/20)</span>\n          <button id=\"clear-rag-btn\" type=\"button\" style=\"background:none;border:none;color:var(--red);font-size:0.72rem;cursor:pointer\">Vaciar</button>\n        </div>\n        <div id=\"knowledge-list-box\"></div>\n      </div>\n    </div>\n  </div>\n</div>\n\n<div class=\"cmd-overlay\" id=\"cmd-overlay\" role=\"dialog\" aria-label=\"Paleta de comandos\">\n  <div class=\"cmd-box\">\n    <input id=\"cmd-input\" type=\"search\" autocomplete=\"off\" placeholder=\"Ir a un comando…\" data-i18n=\"palettePh\" data-i18n-attr=\"placeholder\">\n    <div id=\"cmd-list\"></div>\n  </div>\n</div>\n\n</div>";
 
 
   var currentChatId = Date.now().toString();
@@ -92,7 +92,45 @@
   ];
   var PROVIDERS_KEY = 'ta_providers_v1';
   var PROVIDER_ACTIVE_KEY = 'ta_provider_active';
+  // 伺服器模式（Netlify + Neon）：供應商與 Key 存在伺服器（Key 加密、不回傳），模型選單依供應商分組。
+  var SERVER_PROVIDERS = [];   // [{id, name, base_url, has_key, api_key_hint, models:[{model_id, display_name}]}]
+  var MODEL_GROUPS = [];       // [{provider:{id,name,builtin,has_key}, models:[{id,name}]}]
+  var selectedProviderId = '';
+  try { selectedProviderId = localStorage.getItem(PROVIDER_ACTIVE_KEY) || ''; } catch(e) {}
+  function serverMode() { return !!(syncMeta && syncMeta.enabled); }
+  function findModel(pid, mid) {
+    for (var i = 0; i < MODEL_GROUPS.length; i++) {
+      var g = MODEL_GROUPS[i];
+      if (g.provider.id !== pid) continue;
+      for (var j = 0; j < g.models.length; j++) if (g.models[j].id === mid) return { group: g, model: g.models[j] };
+    }
+    return null;
+  }
+  function firstModel() {
+    for (var i = 0; i < MODEL_GROUPS.length; i++) if (MODEL_GROUPS[i].models.length) return { group: MODEL_GROUPS[i], model: MODEL_GROUPS[i].models[0] };
+    return null;
+  }
+  async function loadServerProviders() {
+    if (!serverMode()) return;
+    var r = await storeFetch('GET', '/api/providers');
+    SERVER_PROVIDERS = (r.providers || []).filter(function(p) { return !p.builtin; });
+    var g = await storeFetch('GET', '/api/models/grouped');
+    MODEL_GROUPS = Array.isArray(g.groups) ? g.groups : [];
+    if (!findModel(selectedProviderId, selectedModel)) {
+      var f = firstModel();
+      if (f) setModel(f.group.provider.id + '|' + f.model.id);
+    }
+    refreshProviderSelect();
+    renderModelPicker();
+    fillDefaultModelSelect();
+  }
   function readProviders() {
+    if (serverMode()) {
+      return SERVER_PROVIDERS.map(function(p) {
+        return { id: p.id, name: p.name, baseUrl: p.base_url, apiKey: '', hasKey: !!p.has_key, keyHint: p.api_key_hint || '',
+          models: (p.models || []).map(function(m) { return m.model_id; }), model: p.models && p.models[0] ? p.models[0].model_id : '' };
+      });
+    }
     try {
       var list = JSON.parse(localStorage.getItem(PROVIDERS_KEY) || '[]');
       return Array.isArray(list) ? list.filter(function(p) { return p && p.id && p.baseUrl; }) : [];
@@ -106,20 +144,28 @@
     for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return null;
   }
+  // 只用於舊的「瀏覽器保存 Key」模式；伺服器模式回傳 null，聊天改送 provider_id。
   function activeProvider() {
+    if (serverMode()) return null;
     var list = readProviders();
     if (!list.length) return null;
     var id = localStorage.getItem(PROVIDER_ACTIVE_KEY) || '';
     return providerById(id) || list[0];
   }
   function ensureModel(id) {
-    if (!id) return;
+    if (!id || serverMode()) return;
     for (var i = 0; i < MODELS.length; i++) if (MODELS[i].id === id) return;
     MODELS.push({ id: id, name: id, desc: '' });
   }
+  function parseModelList(text) {
+    var seen = {}, out = [];
+    String(text || '').split(/[,\n]/).forEach(function(s) { s = s.trim(); if (s && !seen[s] && s.length <= 200) { seen[s] = true; out.push(s); } });
+    return out.slice(0, 200);
+  }
   function providerFormValues() {
     var get = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
-    return { name: get('provider-name'), baseUrl: get('provider-base'), apiKey: get('provider-key'), model: get('provider-model') };
+    var clr = document.getElementById('provider-clear-key');
+    return { name: get('provider-name'), baseUrl: get('provider-base'), apiKey: get('provider-key'), model: get('provider-model'), clearKey: !!(clr && clr.checked) };
   }
   function setProviderStatus(text, bad) {
     var el = document.getElementById('provider-status');
@@ -127,53 +173,88 @@
     el.textContent = text || '';
     el.style.color = bad ? 'var(--red)' : 'var(--green)';
   }
+  function editingProviderId() {
+    var sel = document.getElementById('provider-active-select');
+    return sel && sel.value !== '__new' ? sel.value : '';
+  }
   function loadProviderForm(id) {
     var p = id ? providerById(id) : null;
     var set = function(elId, value) { var el = document.getElementById(elId); if (el) el.value = value || ''; };
     set('provider-name', p ? p.name : '');
     set('provider-base', p ? p.baseUrl : '');
-    set('provider-key', p ? p.apiKey : '');
-    set('provider-model', p ? p.model : '');
-    setProviderStatus(p ? ('使用中：' + (p.name || p.baseUrl)) : '尚未新增供應商', false);
+    set('provider-key', serverMode() ? '' : (p ? p.apiKey : ''));
+    set('provider-model', p ? (serverMode() ? (p.models || []).join(', ') : p.model) : '');
+    var keyEl = document.getElementById('provider-key');
+    if (keyEl) keyEl.placeholder = serverMode() && p ? (p.hasKey ? ('已加密保存（' + p.keyHint + '），留空表示不變') : '未設定 Key（可留空）') : 'sk-…（自建模型可留空）';
+    var clr = document.getElementById('provider-clear-key');
+    if (clr) { clr.checked = false; clr.disabled = !(serverMode() && p && p.hasKey); }
+    setProviderStatus(p ? ('編輯中：' + (p.name || p.baseUrl)) : '新增供應商', false);
   }
   function refreshProviderSelect() {
     var sel = document.getElementById('provider-active-select');
     if (!sel) return;
     var list = readProviders();
-    var active = localStorage.getItem(PROVIDER_ACTIVE_KEY) || (list[0] && list[0].id) || '';
+    var keep = sel.value;
+    var active = serverMode() ? selectedProviderId : (localStorage.getItem(PROVIDER_ACTIVE_KEY) || (list[0] && list[0].id) || '');
     sel.innerHTML = list.map(function(p) {
       return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.name || p.baseUrl) + '</option>';
     }).join('') + '<option value="__new">＋ 新增供應商</option>';
-    sel.value = list.some(function(p) { return p.id === active; }) ? active : (list[0] ? list[0].id : '__new');
+    var want = list.some(function(p) { return p.id === keep; }) ? keep : active;
+    sel.value = list.some(function(p) { return p.id === want; }) ? want : (list[0] ? list[0].id : '__new');
     loadProviderForm(sel.value === '__new' ? '' : sel.value);
   }
-  function saveProvider() {
+  async function saveProvider() {
     var v = providerFormValues();
     if (!v.name) v.name = '供應商';
     if (!/^https:\/\//i.test(v.baseUrl)) { setProviderStatus('Base URL 必須是 HTTPS', true); return; }
     try { new URL(v.baseUrl); } catch(e) { setProviderStatus('Base URL 格式不正確', true); return; }
-    if (!v.apiKey || v.apiKey.length < 8) { setProviderStatus('請填寫有效的 API Key', true); return; }
-    if (!v.model) { setProviderStatus('請填寫模型 ID', true); return; }
+    var models = parseModelList(v.model);
+    if (!models.length) { setProviderStatus('請填寫至少一個模型 ID（多個以逗號分隔）', true); return; }
+    // API Key 可以留空：自建模型或不需驗證的相容閘道。
+    if (serverMode()) {
+      var currentId = editingProviderId();
+      var body = { name: v.name, base_url: v.baseUrl.replace(/\/+$/, ''), models: models };
+      if (v.apiKey) body.api_key = v.apiKey;
+      else if (currentId && v.clearKey) { body.api_key = ''; body.clear_key = true; }
+      setProviderStatus('儲存中…', false);
+      try {
+        var r = currentId ? await storeFetch('PATCH', '/api/providers/' + encodeURIComponent(currentId), body)
+                          : await storeFetch('POST', '/api/providers', body);
+        var saved = r.provider;
+        var sel = document.getElementById('provider-active-select');
+        if (sel && saved) { sel.innerHTML += '<option value="' + escapeHtml(saved.id) + '"></option>'; sel.value = saved.id; }
+        await loadServerProviders();
+        if (saved) setModel(saved.id + '|' + models[0]);
+        var keyEl = document.getElementById('provider-key'); if (keyEl) keyEl.value = '';
+        setProviderStatus('已儲存：' + v.name + (saved && saved.has_key ? '（Key 已加密）' : '（無 Key）'), false);
+      } catch(e) { setProviderStatus(e && e.message ? e.message : '儲存失敗', true); }
+      return;
+    }
     var list = readProviders();
-    var sel = document.getElementById('provider-active-select');
-    var currentId = sel && sel.value !== '__new' ? sel.value : '';
-    var existing = currentId ? providerById(currentId) : null;
-    var item = { id: existing ? existing.id : ('p' + Date.now()), name: v.name, baseUrl: v.baseUrl.replace(/\/+$/, ''), apiKey: v.apiKey, model: v.model };
+    var lid = editingProviderId();
+    var existing = lid ? providerById(lid) : null;
+    var item = { id: existing ? existing.id : ('p' + Date.now()), name: v.name, baseUrl: v.baseUrl.replace(/\/+$/, ''), apiKey: v.apiKey, model: models[0] };
     if (existing) {
       for (var i = 0; i < list.length; i++) if (list[i].id === existing.id) list[i] = item;
     } else list.push(item);
     writeProviders(list);
     localStorage.setItem(PROVIDER_ACTIVE_KEY, item.id);
     ensureModel(item.model);
-    if (sel) sel.value = item.id;
+    var lsel = document.getElementById('provider-active-select');
+    if (lsel) lsel.value = item.id;
     setModel(item.model);
     setProviderStatus('已儲存：' + item.name, false);
   }
-  function deleteProvider() {
-    var sel = document.getElementById('provider-active-select');
-    var id = sel ? sel.value : '';
-    if (!id || id === '__new') { setProviderStatus('目前沒有可刪除的供應商', true); return; }
+  async function deleteProvider() {
+    var id = editingProviderId();
+    if (!id) { setProviderStatus('目前沒有可刪除的供應商', true); return; }
     if (!confirm('刪除這個供應商設定？')) return;
+    if (serverMode()) {
+      try { await storeFetch('DELETE', '/api/providers/' + encodeURIComponent(id)); } catch(e) { setProviderStatus(e.message || '刪除失敗', true); return; }
+      await loadServerProviders();
+      setProviderStatus('已刪除', false);
+      return;
+    }
     var list = readProviders().filter(function(p) { return p.id !== id; });
     writeProviders(list);
     localStorage.setItem(PROVIDER_ACTIVE_KEY, list[0] ? list[0].id : '');
@@ -182,20 +263,27 @@
   }
   async function fetchProviderModels(apply) {
     var v = providerFormValues();
-    if (!v.baseUrl || !v.apiKey) { setProviderStatus('請先填寫 Base URL 與 API Key', true); return; }
+    var currentId = editingProviderId();
+    if (!v.baseUrl) { setProviderStatus('請先填寫 Base URL', true); return; }
     setProviderStatus('正在連線…', false);
     try {
-      var res = await fetch('/api/models', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseUrl: v.baseUrl, apiKey: v.apiKey }) });
-      var data = await res.json().catch(function() { return {}; });
-      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      var data;
+      if (serverMode() && currentId && !v.apiKey) {
+        // 已儲存的供應商：由伺服器解密 Key 後代為查詢，Key 不經過瀏覽器
+        data = await storeFetch('POST', '/api/providers/' + encodeURIComponent(currentId) + '/discover', {});
+      } else {
+        var res = await fetch('/api/models', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseUrl: v.baseUrl, apiKey: v.apiKey }) });
+        data = await res.json().catch(function() { return {}; });
+        if (!res.ok) throw new Error(data.message || data.error || ('HTTP ' + res.status));
+      }
       var models = Array.isArray(data.models) ? data.models : [];
       var list = document.getElementById('provider-model-list');
       if (list) list.innerHTML = models.map(function(m) { return '<option value="' + escapeHtml(m) + '"></option>'; }).join('');
       if (apply && models.length) {
         var input = document.getElementById('provider-model');
-        if (input) input.value = models[0];
+        if (input) input.value = serverMode() ? models.slice(0, 50).join(', ') : models[0];
       }
-      setProviderStatus('連線成功，取得 ' + models.length + ' 個模型', false);
+      setProviderStatus('連線成功，取得 ' + models.length + ' 個模型' + (apply && serverMode() && models.length ? '，可刪掉不需要的再儲存' : ''), false);
     } catch(e) {
       setProviderStatus(e && e.message ? e.message : '連線失敗', true);
     }
@@ -213,21 +301,23 @@
     var active = activeProvider();
     if (active) { ensureModel(active.model); if (active.model) setModel(active.model); }
   }
-  var SYNC_META_KEY = 'ta_sync_meta_v1';
-  var syncMeta = { enabled: false, lastCursor: 0, known: { chat: [], doc: [], project: [] }, sent: {}, values: {}, timer: 0, applying: false, busy: false };
+  // ── 伺服器儲存（Netlify + Neon）─────────────────────────────────
+  // 取代舊 D1 同步：伺服器為主，localStorage 只當快取。
+  // 推送：saveChats / saveDocuments / saveProjects / 儲存設定 → scheduleSync() → 1.5 秒後把有變動的項目送到伺服器。
+  // 拉取：啟動時與按「立即同步」時，以伺服器為準更新本機；本機尚未送出的修改保留並稍後送出。
+  var STORE_META_KEY = 'ta_store_meta_v2';
+  var syncMeta = { enabled: false, applying: false, busy: false, timer: 0, pending: false, hashes: {}, srv: {}, providersImported: false };
   try {
-    var savedSync = JSON.parse(localStorage.getItem(SYNC_META_KEY) || '{}');
-    if (savedSync && typeof savedSync === 'object') {
-      syncMeta.lastCursor = Number(savedSync.lastCursor) || 0;
-      syncMeta.sent = savedSync.sent && typeof savedSync.sent === 'object' ? savedSync.sent : {};
-      syncMeta.values = savedSync.values && typeof savedSync.values === 'object' ? savedSync.values : {};
-      if (savedSync.known && typeof savedSync.known === 'object') {
-        ['chat','doc','project'].forEach(function(k) { syncMeta.known[k] = Array.isArray(savedSync.known[k]) ? savedSync.known[k] : []; });
-      }
+    var savedStore = JSON.parse(localStorage.getItem(STORE_META_KEY) || '{}');
+    if (savedStore && typeof savedStore === 'object') {
+      syncMeta.hashes = savedStore.hashes && typeof savedStore.hashes === 'object' ? savedStore.hashes : {};
+      syncMeta.srv = savedStore.srv && typeof savedStore.srv === 'object' ? savedStore.srv : {};
+      syncMeta.providersImported = !!savedStore.providersImported;
     }
-  } catch(eSync) {}
+    localStorage.removeItem('ta_sync_meta_v1');
+  } catch(eStore) {}
   function saveSyncMeta() {
-    try { localStorage.setItem(SYNC_META_KEY, JSON.stringify({ lastCursor: syncMeta.lastCursor, known: syncMeta.known, sent: syncMeta.sent, values: syncMeta.values })); } catch(e) {}
+    try { localStorage.setItem(STORE_META_KEY, JSON.stringify({ hashes: syncMeta.hashes, srv: syncMeta.srv, providersImported: syncMeta.providersImported })); } catch(e) {}
   }
   function setSyncStatus(text, bad) {
     var el = document.getElementById('sync-status');
@@ -235,158 +325,329 @@
     el.textContent = text || '';
     el.style.color = bad ? 'var(--red)' : 'var(--muted)';
   }
-  function syncJson(value) {
-    try { return JSON.stringify(value); } catch(e) { return ''; }
+  // localStorage 鍵 → 伺服器 settings 鍵。ta_ephemeral、ta_project_active 是裝置狀態，不上傳。
+  var STORE_SETTINGS = {
+    ta_custom_prompt: 'custom_prompt', ta_tone: 'tone', ta_len_mode: 'len_mode', ta_auto_search: 'auto_search',
+    ta_use_docs: 'use_docs', ta_timezone: 'timezone', ta_adapt: 'adapt',
+    ta_prompt_favs: 'prompt_favs', ta_prompt_recent: 'prompt_recent',
+    ta_model: 'active_model_id', ta_provider_active: 'active_provider_id',
+    ta_theme: 'ui.theme', ta_font: 'ui.font', ta_accent: 'ui.accent', ta_compact_sb: 'ui.compact_sb',
+    ta_reduce_motion: 'ui.reduce_motion', ta_show_time: 'ui.show_time', ta_enter_send: 'ui.enter_send',
+    ta_confirm_del: 'ui.confirm_del', ta_auto_read: 'ui.auto_read'
+  };
+  function storeHash(value) {
+    var s = typeof value === 'string' ? value : JSON.stringify(value);
+    var h = 0x811c9dc5;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0; }
+    return s.length + ':' + h.toString(36);
   }
-  function addSyncChange(changes, key, value, updatedAt, force) {
-    if (!force && syncMeta.sent[key] && Number(syncMeta.sent[key]) >= updatedAt) return;
-    changes.push({ key: key, value: value, updatedAt: updatedAt, deleted: false });
+  async function storeFetch(method, path, body) {
+    var opts = { method: method, credentials: 'same-origin', headers: {} };
+    if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    var res = await fetch(path, opts);
+    if (res.status === 401) { location.href = '/login'; throw new Error('請重新登入'); }
+    var data = await res.json().catch(function() { return {}; });
+    if (!res.ok && !(method === 'DELETE' && res.status === 404)) throw new Error(data.message || data.error || ('HTTP ' + res.status));
+    return data;
   }
-  function collectSyncChanges(force) {
-    var changes = [];
-    var present = { chat: {}, doc: {}, project: {} };
-    var now = Date.now();
-    Object.keys(chats).forEach(function(id) {
-      var c = chats[id];
-      if (!c || c.ephemeral) return;
-      present.chat[id] = true;
-      var at = Number(c.updatedAt || c.at || now) || now;
-      addSyncChange(changes, 'chat:' + id, syncJson(c), at, force);
-    });
-    documents.forEach(function(d) {
-      if (!d || !d.id) return;
-      present.doc[d.id] = true;
-      var at = Number(d.updatedAt || now) || now;
-      addSyncChange(changes, 'doc:' + d.id, syncJson(d), at, force);
-    });
-    projects.forEach(function(pr) {
-      if (!pr || !pr.id) return;
-      present.project[pr.id] = true;
-      var at = Number(pr.updatedAt || now) || now;
-      addSyncChange(changes, 'project:' + pr.id, syncJson(pr), at, force);
-    });
-    [['prompt','favs','ta_prompt_favs'],['prompt','recent','ta_prompt_recent'],['setting','custom_prompt','ta_custom_prompt'],['setting','tone','ta_tone'],['setting','len_mode','ta_len_mode'],['setting','auto_search','ta_auto_search'],['setting','use_docs','ta_use_docs']].forEach(function(row) {
-      var key = row[0] + ':' + row[1];
-      var value = '';
-      try { value = localStorage.getItem(row[2]) || ''; } catch(e) {}
-      if (!force && syncMeta.values[key] === value) return;
-      changes.push({ key: key, value: value, updatedAt: now, deleted: false });
-    });
-    ['chat','doc','project'].forEach(function(type) {
-      (syncMeta.known[type] || []).forEach(function(id) {
-        if (present[type][id]) return;
-        changes.push({ key: type + ':' + id, value: '', updatedAt: now, deleted: true });
-      });
-    });
-    return changes;
+  window.TA_STORE = { fetch: storeFetch };
+
+  // 本機格式 ↔ 伺服器格式
+  function chatForHash(c) {
+    return { title: c.title || '', projectId: c.projectId || null, pinned: !!c.pinned, archived: !!c.archived,
+      messages: (c.messages || []).map(function(m) { return [m.role, m.content, m.sources || [], m.image || '']; }) };
   }
+  function chatToServer(id, c) {
+    return { id: id, title: String(c.title || '').slice(0, 300), project_id: c.projectId || null, pinned: !!c.pinned, archived: !!c.archived,
+      messages: (c.messages || []).map(function(m) {
+        return { role: m.role === 'ai' ? 'assistant' : m.role, content: m.content || '', sources: m.sources || [], at: m.at, image: m.image && String(m.image).length <= 2000 ? m.image : undefined };
+      }) };
+  }
+  function chatFromServer(sc) {
+    return { title: sc.title || '', projectId: sc.project_id || null, pinned: !!sc.pinned, archived: !!sc.archived,
+      updatedAt: Date.parse(sc.updated_at) || Date.now(),
+      messages: (sc.messages || []).map(function(m) {
+        var out = { role: m.role === 'assistant' ? 'ai' : m.role, content: m.content || '', sources: m.sources || [], at: Date.parse(m.created_at) || Date.now() };
+        if (m.meta && m.meta.image) out.image = m.meta.image;
+        return out;
+      }) };
+  }
+  function docForHash(d) { return { t: d.title || '', c: d.content || '', ty: d.type || 'note', p: d.projectId || null }; }
+  function docToServer(d) {
+    var ty = d.type === 'file' || d.type === 'web' || d.type === 'knowledge' ? d.type : 'note';
+    return { id: d.id, title: String(d.title || '').slice(0, 500), content: String(d.content || ''), doc_type: ty, project_id: d.projectId || null,
+      data: { legacy_type: d.type || null, created: d.created || null, lang: d.lang || null, size: d.size || null } };
+  }
+  function docFromServer(sd) {
+    var data = sd.data || {};
+    return { id: sd.id, title: sd.title || '', content: sd.content || '', type: data.legacy_type || sd.doc_type || 'note',
+      projectId: sd.project_id || null, created: data.created || Date.parse(sd.created_at) || Date.now(), lang: data.lang || undefined,
+      updatedAt: Date.parse(sd.updated_at) || Date.now() };
+  }
+  function projectForHash(p) { var c = {}; Object.keys(p).forEach(function(k) { if (k !== 'updatedAt') c[k] = p[k]; }); return c; }
+  function projectToServer(p) {
+    var data = {};
+    Object.keys(p).forEach(function(k) { if (['id', 'name', 'description', 'instructions', 'updatedAt'].indexOf(k) === -1) data[k] = p[k]; });
+    return { id: p.id, name: String(p.name || '未命名專案').slice(0, 200), description: p.description || '', instructions: p.instructions || '', data: data };
+  }
+  function projectFromServer(sp) {
+    var p = {};
+    var data = sp.data || {};
+    Object.keys(data).forEach(function(k) { p[k] = data[k]; });
+    p.id = sp.id; p.name = sp.name; p.description = sp.description || ''; p.instructions = sp.instructions || '';
+    p.updatedAt = Date.parse(sp.updated_at) || Date.now();
+    return p;
+  }
+  function settingsSnapshot() {
+    var out = {};
+    Object.keys(STORE_SETTINGS).forEach(function(lk) {
+      var v = null;
+      try { v = localStorage.getItem(lk); } catch(e) {}
+      if (v !== null) out[STORE_SETTINGS[lk]] = v;
+    });
+    return out;
+  }
+  function localProfileRaw() { try { return localStorage.getItem('ta_profile') || ''; } catch(e) { return ''; } }
+
   async function pullSync() {
     if (!syncMeta.enabled || syncMeta.busy) return false;
     syncMeta.busy = true;
+    syncMeta.applying = true;
+    var imported = 0;
     try {
-      var res = await fetch('/api/sync?since=' + encodeURIComponent(String(syncMeta.lastCursor || 0)) + '&limit=1000', { credentials: 'same-origin' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      var data = await res.json();
-      var items = Array.isArray(data.items) ? data.items : [];
-      if (!items.length) { setSyncStatus('已同步', false); return true; }
-      syncMeta.applying = true;
-      var touchedChats = false, touchedDocs = false, touchedProjects = false;
-      items.forEach(function(item) {
-        var key = String(item.key || '');
-        var parts = key.split(':');
-        var type = parts[0], id = parts.slice(1).join(':');
-        if (!id) return;
-        if (item.deleted) {
-          if (type === 'chat' && chats[id]) { delete chats[id]; touchedChats = true; }
-          if (type === 'doc') { var nd = documents.filter(function(d) { return d.id !== id; }); if (nd.length !== documents.length) { documents = nd; touchedDocs = true; } }
-          if (type === 'project') { var np = projects.filter(function(pr) { return pr.id !== id; }); if (np.length !== projects.length) { projects = np; touchedProjects = true; } }
-        } else if (type === 'chat') {
-          try {
-            var chat = JSON.parse(item.value);
-            if (!chats[id] || Number(item.updatedAt) >= Number(chats[id].updatedAt || 0)) { chats[id] = chat; touchedChats = true; }
-          } catch(e) {}
-        } else if (type === 'doc') {
-          try {
-            var doc = JSON.parse(item.value);
-            var found = false;
-            for (var i = 0; i < documents.length; i++) if (documents[i].id === id) { found = true; if (Number(item.updatedAt) >= Number(documents[i].updatedAt || 0)) documents[i] = doc; break; }
-            if (!found) { documents.push(doc); touchedDocs = true; }
-          } catch(e) {}
-        } else if (type === 'project') {
-          try {
-            var proj = JSON.parse(item.value);
-            var pfound = false;
-            for (var j = 0; j < projects.length; j++) if (projects[j].id === id) { pfound = true; if (Number(item.updatedAt) >= Number(projects[j].updatedAt || 0)) projects[j] = proj; break; }
-            if (!pfound) { projects.push(proj); touchedProjects = true; }
-          } catch(e) {}
-        } else if (type === 'prompt') {
-          var pkey = id === 'favs' ? 'ta_prompt_favs' : id === 'recent' ? 'ta_prompt_recent' : '';
-          if (pkey) { try { localStorage.setItem(pkey, item.value || '[]'); } catch(e) {} }
-        } else if (type === 'setting') {
-          var skey = { custom_prompt: 'ta_custom_prompt', tone: 'ta_tone', len_mode: 'ta_len_mode', auto_search: 'ta_auto_search', use_docs: 'ta_use_docs' }[id];
-          if (skey) { try { localStorage.setItem(skey, item.value || ''); } catch(e) {} }
-        }
-        syncMeta.sent[key] = Number(item.updatedAt) || 0;
-        syncMeta.lastCursor = Math.max(syncMeta.lastCursor || 0, Number(item.updatedAt) || 0);
+      // 1) 設定：伺服器有值 → 覆蓋本機；本機有、伺服器沒有 → 稍後推送
+      var sres = await storeFetch('GET', '/api/settings');
+      var serverSettings = sres.settings || {};
+      Object.keys(STORE_SETTINGS).forEach(function(lk) {
+        var sk = STORE_SETTINGS[lk];
+        if (!(sk in serverSettings)) return;
+        var v = serverSettings[sk];
+        var str = typeof v === 'string' ? v : JSON.stringify(v);
+        var local = localStorage.getItem(lk);
+        var h = syncMeta.hashes['setting:' + sk];
+        if (local !== null && h && h !== storeHash(local)) return; // 本機有未送出的修改
+        try { localStorage.setItem(lk, str); } catch(e) {}
+        syncMeta.hashes['setting:' + sk] = storeHash(str);
       });
-      if (touchedChats) { saveChats(); renderSidebar(); if (chats[currentChatId]) loadChatView(); }
-      if (touchedDocs) { saveDocuments(); renderSidebar(); }
-      if (touchedProjects) { saveProjects(); renderSidebar(); }
+      selectedModel = localStorage.getItem('ta_model') || selectedModel;
+      // 2) 個人資料
+      var pres = await storeFetch('GET', '/api/profile');
+      if (pres.profile && Object.keys(pres.profile).length) {
+        var pstr = JSON.stringify(pres.profile);
+        var ph = syncMeta.hashes.profile;
+        if (!(ph && ph !== storeHash(localProfileRaw()))) {
+          try { localStorage.setItem('ta_profile', pstr); } catch(e) {}
+          syncMeta.hashes.profile = storeHash(pstr);
+        }
+      }
+      // 3) 專案
+      var prj = (await storeFetch('GET', '/api/projects?limit=2000')).items || [];
+      var touchedProjects = false;
+      var serverProjectIds = {};
+      prj.forEach(function(sp) {
+        serverProjectIds[sp.id] = true;
+        var local = null, idx = -1;
+        for (var i = 0; i < projects.length; i++) if (projects[i] && projects[i].id === sp.id) { local = projects[i]; idx = i; break; }
+        var key = 'project:' + sp.id;
+        if (local && syncMeta.hashes[key] && syncMeta.hashes[key] !== storeHash(projectForHash(local))) return;
+        if (syncMeta.srv[key] === sp.updated_at && local) return;
+        var np = projectFromServer(sp);
+        if (idx >= 0) projects[idx] = np; else projects.push(np);
+        syncMeta.hashes[key] = storeHash(projectForHash(np));
+        syncMeta.srv[key] = sp.updated_at;
+        touchedProjects = true;
+      });
+      projects = projects.filter(function(p) {
+        if (!p || !p.id || serverProjectIds[p.id]) return true;
+        if (syncMeta.hashes['project:' + p.id]) { delete syncMeta.hashes['project:' + p.id]; touchedProjects = true; return false; } // 其他裝置已刪除
+        imported++; return true; // 從未上傳 → 保留並推送
+      });
+      // 4) 文件（知識庫）
+      var docs = (await storeFetch('GET', '/api/documents?full=1&limit=2000')).items || [];
+      var touchedDocs = false;
+      var serverDocIds = {};
+      docs.forEach(function(sd) {
+        serverDocIds[sd.id] = true;
+        var local = null, idx = -1;
+        for (var i = 0; i < documents.length; i++) if (documents[i] && documents[i].id === sd.id) { local = documents[i]; idx = i; break; }
+        var key = 'doc:' + sd.id;
+        if (local && syncMeta.hashes[key] && syncMeta.hashes[key] !== storeHash(docForHash(local))) return;
+        if (syncMeta.srv[key] === sd.updated_at && local) return;
+        var nd = docFromServer(sd);
+        if (idx >= 0) documents[idx] = nd; else documents.push(nd);
+        syncMeta.hashes[key] = storeHash(docForHash(nd));
+        syncMeta.srv[key] = sd.updated_at;
+        touchedDocs = true;
+      });
+      documents = documents.filter(function(d) {
+        if (!d || !d.id || serverDocIds[d.id]) return true;
+        if (syncMeta.hashes['doc:' + d.id]) { delete syncMeta.hashes['doc:' + d.id]; touchedDocs = true; return false; }
+        imported++; return true;
+      });
+      // 5) 對話：列表只含標題與時間，有變動的才抓完整內容
+      var convs = (await storeFetch('GET', '/api/conversations?limit=1000')).conversations || [];
+      var touchedChats = false;
+      var serverChatIds = {};
+      for (var ci = 0; ci < convs.length; ci++) {
+        var sc = convs[ci];
+        serverChatIds[sc.id] = true;
+        var ckey = 'chat:' + sc.id;
+        var lc = chats[sc.id];
+        if (lc && syncMeta.hashes[ckey] && syncMeta.hashes[ckey] !== storeHash(chatForHash(lc))) continue;
+        if (lc && syncMeta.srv[ckey] === sc.updated_at) continue;
+        var full = (await storeFetch('GET', '/api/conversations/' + encodeURIComponent(sc.id))).conversation;
+        if (!full) continue;
+        var nc = chatFromServer(full);
+        chats[sc.id] = nc;
+        syncMeta.hashes[ckey] = storeHash(chatForHash(nc));
+        syncMeta.srv[ckey] = sc.updated_at;
+        touchedChats = true;
+      }
+      Object.keys(chats).forEach(function(id) {
+        var c = chats[id];
+        if (!c || c.ephemeral || c.readOnly || serverChatIds[id]) return;
+        if (syncMeta.hashes['chat:' + id]) { delete chats[id]; delete syncMeta.hashes['chat:' + id]; touchedChats = true; return; }
+        if (c.messages && c.messages.length) imported++;
+      });
+      if (touchedProjects) { saveProjects(); }
+      if (touchedDocs) { saveDocuments(); }
+      if (touchedChats) { saveChats(); if (chats[currentChatId]) loadChatView(); }
+      if (touchedProjects || touchedDocs || touchedChats) renderSidebar();
       saveSyncMeta();
-      setSyncStatus('已同步 ' + items.length + ' 項', false);
+      setSyncStatus(imported ? ('正在把 ' + imported + ' 項本機資料上傳到伺服器…') : '已與伺服器同步', false);
       return true;
     } catch(e) {
-      setSyncStatus('同步失敗：' + (e && e.message ? e.message : '網路錯誤'), true);
+      setSyncStatus('讀取伺服器資料失敗：' + (e && e.message ? e.message : '網路錯誤'), true);
       return false;
     } finally {
       syncMeta.busy = false;
       syncMeta.applying = false;
     }
   }
-  async function pushSync(force) {
-    if (!syncMeta.enabled || syncMeta.busy) return false;
-    var changes = collectSyncChanges(!!force);
-    if (!changes.length) { setSyncStatus('已同步', false); return true; }
+
+  async function pushSync() {
+    if (!syncMeta.enabled) return false;
+    if (syncMeta.busy) { syncMeta.pending = true; return false; }
     syncMeta.busy = true;
+    var sent = 0;
     try {
-      var res = await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ changes: changes }) });
-      var data = await res.json().catch(function() { return {}; });
-      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
-      changes.forEach(function(ch) {
-        if (!ch.deleted) {
-          syncMeta.sent[ch.key] = ch.updatedAt;
-          syncMeta.values[ch.key] = ch.value;
-        }
+      // 設定
+      var snap = settingsSnapshot();
+      var patch = {}, any = false;
+      Object.keys(snap).forEach(function(sk) {
+        if (syncMeta.hashes['setting:' + sk] !== storeHash(snap[sk])) { patch[sk] = snap[sk]; any = true; }
       });
-      var present = { chat: {}, doc: {}, project: {} };
-      Object.keys(chats).forEach(function(id) { present.chat[id] = true; });
-      documents.forEach(function(d) { if (d && d.id) present.doc[d.id] = true; });
-      projects.forEach(function(pr) { if (pr && pr.id) present.project[pr.id] = true; });
-      syncMeta.known = { chat: Object.keys(present.chat), doc: Object.keys(present.doc), project: Object.keys(present.project) };
+      if (any) {
+        await storeFetch('PUT', '/api/settings', { settings: patch });
+        Object.keys(patch).forEach(function(sk) { syncMeta.hashes['setting:' + sk] = storeHash(patch[sk]); sent++; });
+      }
+      // 個人資料
+      var praw = localProfileRaw();
+      if (praw && syncMeta.hashes.profile !== storeHash(praw)) {
+        var pobj = null; try { pobj = JSON.parse(praw); } catch(e) {}
+        if (pobj && typeof pobj === 'object') { await storeFetch('PUT', '/api/profile', { profile: pobj }); sent++; }
+        syncMeta.hashes.profile = storeHash(praw);
+      }
+      // 專案（先送，文件與對話會參照）
+      var present = {};
+      for (var i = 0; i < projects.length; i++) {
+        var p = projects[i];
+        if (!p || !p.id) continue;
+        var key = 'project:' + p.id; present[key] = true;
+        var h = storeHash(projectForHash(p));
+        if (syncMeta.hashes[key] === h) continue;
+        var r = await storeFetch('POST', '/api/projects', projectToServer(p));
+        syncMeta.hashes[key] = h; if (r.item) syncMeta.srv[key] = r.item.updated_at; sent++;
+      }
+      for (var j = 0; j < documents.length; j++) {
+        var d = documents[j];
+        if (!d || !d.id) continue;
+        var dkey = 'doc:' + d.id; present[dkey] = true;
+        var dh = storeHash(docForHash(d));
+        if (syncMeta.hashes[dkey] === dh) continue;
+        var dr = await storeFetch('POST', '/api/documents', docToServer(d));
+        syncMeta.hashes[dkey] = dh; if (dr.item) syncMeta.srv[dkey] = dr.item.updated_at; sent++;
+      }
+      var ids = Object.keys(chats);
+      for (var k = 0; k < ids.length; k++) {
+        var id = ids[k], c = chats[id];
+        if (!c || c.ephemeral || c.readOnly || !c.messages || !c.messages.length) continue;
+        if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) continue;
+        var ckey = 'chat:' + id; present[ckey] = true;
+        var ch = storeHash(chatForHash(c));
+        if (syncMeta.hashes[ckey] === ch) continue;
+        var cr = await storeFetch('PUT', '/api/conversations/' + encodeURIComponent(id), chatToServer(id, c));
+        syncMeta.hashes[ckey] = ch; if (cr.conversation) syncMeta.srv[ckey] = cr.conversation.updated_at; sent++;
+      }
+      // 本機刪除 → 伺服器軟刪除
+      var kinds = { project: '/api/projects/', doc: '/api/documents/', chat: '/api/conversations/' };
+      var hkeys = Object.keys(syncMeta.hashes);
+      for (var x = 0; x < hkeys.length; x++) {
+        var hk = hkeys[x], type = hk.split(':')[0], hid = hk.slice(type.length + 1);
+        if (!kinds[type] || present[hk]) continue;
+        if (type === 'chat' && chats[hid]) continue; // 還在但沒有訊息
+        await storeFetch('DELETE', kinds[type] + encodeURIComponent(hid));
+        delete syncMeta.hashes[hk]; delete syncMeta.srv[hk]; sent++;
+      }
       saveSyncMeta();
-      setSyncStatus('已同步 ' + changes.length + ' 項', false);
+      setSyncStatus(sent ? ('已儲存到伺服器（' + sent + ' 項）') : '已與伺服器同步', false);
       return true;
     } catch(e) {
-      setSyncStatus('同步失敗：' + (e && e.message ? e.message : '網路錯誤'), true);
+      saveSyncMeta();
+      setSyncStatus('儲存到伺服器失敗：' + (e && e.message ? e.message : '網路錯誤') + '（資料仍在本機，稍後重試）', true);
+      clearTimeout(syncMeta.timer);
+      syncMeta.timer = setTimeout(function() { pushSync(); }, 15000);
       return false;
     } finally {
       syncMeta.busy = false;
+      if (syncMeta.pending) { syncMeta.pending = false; scheduleSync(); }
     }
   }
   function scheduleSync() {
     if (!syncMeta.enabled || syncMeta.applying) return;
     clearTimeout(syncMeta.timer);
-    syncMeta.timer = setTimeout(function() { pushSync(false); }, 1800);
+    syncMeta.timer = setTimeout(function() { pushSync(); }, 1500);
+  }
+  // 舊版瀏覽器內的供應商（含 API Key）→ 伺服器加密保存，成功後從瀏覽器移除 Key。
+  async function importLocalProviders() {
+    if (syncMeta.providersImported) return 0;
+    var list = [];
+    try { list = JSON.parse(localStorage.getItem(PROVIDERS_KEY) || '[]'); } catch(e) {}
+    if (!Array.isArray(list)) list = [];
+    var existing = {};
+    SERVER_PROVIDERS.forEach(function(p) { existing[p.id] = true; });
+    var n = 0, failed = 0;
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i];
+      if (!p || !p.baseUrl) continue;
+      var pid = /^[A-Za-z0-9_-]{1,64}$/.test(String(p.id || '')) ? String(p.id) : undefined;
+      if (pid && existing[pid]) continue;
+      try {
+        await storeFetch('POST', '/api/providers', { id: pid, name: p.name || '供應商', base_url: p.baseUrl, api_key: p.apiKey || '', models: p.model ? [p.model] : [] });
+        n++;
+      } catch(e) { failed++; }
+    }
+    if (!failed) {
+      try { localStorage.removeItem(PROVIDERS_KEY); } catch(e) {}
+      syncMeta.providersImported = true;
+      saveSyncMeta();
+    }
+    return n;
   }
   async function syncBootstrap() {
-    if (!syncMeta.enabled) { setSyncStatus('此部署未啟用 D1 同步', false); return; }
+    if (!syncMeta.enabled) { setSyncStatus('此部署未設定伺服器儲存，資料只保存在這個瀏覽器', false); return; }
+    setSyncStatus('正在讀取伺服器資料…', false);
     await pullSync();
-    await pushSync(false);
+    try {
+      await loadServerProviders();
+      if (await importLocalProviders()) await loadServerProviders();
+    } catch(e) { setProviderStatus('讀取供應商失敗：' + (e && e.message ? e.message : ''), true); }
+    await pushSync();
   }
   function syncNow() {
-    if (!syncMeta.enabled) { setSyncStatus('此部署未啟用 D1 同步', true); return; }
+    if (!syncMeta.enabled) { setSyncStatus('此部署未設定伺服器儲存', true); return; }
     setSyncStatus('同步中…', false);
-    pullSync().then(function() { return pushSync(true); });
+    pullSync().then(function() { return loadServerProviders(); }).then(function() { return pushSync(); });
   }
 
   var TONES = {
@@ -1689,10 +1950,18 @@
       }
       var customPrompt = localStorage.getItem('ta_custom_prompt') || '';
       var provider = activeProvider();
-      if (!provider && serverDefaultProvider === false) throw new Error('請先在設定中新增供應商，或設定 GROQ_API_KEY');
+      var useServerProvider = serverMode() && !!selectedProviderId;
+      if (!provider && !useServerProvider && serverDefaultProvider === false) throw new Error('請先在設定中新增供應商，或設定 GROQ_API_KEY');
       var headers = { 'Content-Type': 'application/json' };
       var snippets = [];
-      if (localStorage.getItem('ta_use_docs') !== '0') {
+      if (localStorage.getItem('ta_use_docs') !== '0' && serverMode() && documents.length) {
+        // 伺服器知識庫檢索（中文二字組 + 全文），只帶最相關的段落
+        try {
+          var sr = await storeFetch('GET', '/api/documents/search?q=' + encodeURIComponent(String(promptText || '').slice(0, 300)) + (currentProjectId ? '&project_id=' + encodeURIComponent(currentProjectId) : ''));
+          snippets = (sr.results || []).map(function(r) { return { title: r.title, content: String(r.content || '').slice(0, 2500) }; });
+        } catch(eDocs) { snippets = []; }
+      }
+      if (localStorage.getItem('ta_use_docs') !== '0' && !snippets.length) {
         snippets = documents.filter(function(d) {
           return !currentProjectId || d.projectId === currentProjectId || !d.projectId;
         }).sort(function(x, y) { return (x.projectId === currentProjectId ? 1 : 0) - (y.projectId === currentProjectId ? 1 : 0); }).slice(-6).map(function(d) { return { title: d.title, content: String(d.content || '').slice(0, 2500) }; });
@@ -1703,7 +1972,7 @@
       var resolvedTz = (tzVal && tzVal !== 'auto') ? tzVal : (function() {
         try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Taipei'; } catch(e) { return 'Asia/Taipei'; }
       })();
-      var resolvedModel = provider ? (provider.model || selectedModel) : (serverDefaultModel || selectedModel);
+      var resolvedModel = useServerProvider ? selectedModel : provider ? (provider.model || selectedModel) : (serverDefaultModel || selectedModel);
       var payload = {
           prompt: fullPrompt,
           model: resolvedModel,
@@ -1720,7 +1989,8 @@
           adapt: adaptEnabled(),
           profile: adaptEnabled() ? loadLocalProfile() : undefined
         };
-      if (provider) payload.provider = { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model || selectedModel };
+      if (useServerProvider) payload.provider_id = selectedProviderId;
+      else if (provider) payload.provider = { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model || selectedModel };
       if (window.TAP) { var tapPreset = TAP.rolePreset(); if (tapPreset) payload.role_preset = tapPreset; }
       if (pendingImage) payload.image = { dataUrl: pendingImage };
       var response = await fetch('/api/chat', {
@@ -1839,6 +2109,10 @@
     if (abortCtl) abortCtl.abort();
   }
   function currentModelMeta() {
+    if (MODEL_GROUPS.length) {
+      var f = findModel(selectedProviderId, selectedModel);
+      if (f) return { id: f.model.id, name: f.model.name, desc: f.group.provider.name };
+    }
     for (var i = 0; i < MODELS.length; i++) if (MODELS[i].id === selectedModel) return MODELS[i];
     return { id: selectedModel, name: selectedModel || MODELS[0].name, desc: '' };
   }
@@ -1848,6 +2122,21 @@
     var meta = currentModelMeta();
     if (label) label.textContent = meta.name;
     if (!menu) return;
+    if (MODEL_GROUPS.length) {
+      // 依供應商分組：內建 Groq 與每個自訂供應商各自一組
+      var descById = {}; MODELS.forEach(function(m) { descById[m.id] = m.desc; });
+      menu.innerHTML = MODEL_GROUPS.map(function(g) {
+        var head = '<div class="model-group-label" role="presentation">' + escapeHtml(g.provider.name) + (g.provider.has_key || g.provider.builtin ? '' : ' · 無 Key') + '</div>';
+        if (!g.models.length) return head + '<div class="model-option-desc model-group-empty">尚未設定模型</div>';
+        return head + g.models.map(function(m) {
+          var active = g.provider.id === selectedProviderId && m.id === selectedModel;
+          var desc = g.provider.builtin && descById[m.id] ? t(descById[m.id]) : (m.name !== m.id ? m.id : '');
+          return '<button type="button" class="model-option' + (active ? ' active' : '') + '" data-model="' + escapeHtml(g.provider.id + '|' + m.id) + '" role="option">' +
+            '<div class="model-option-name">' + escapeHtml(m.name) + '</div>' + (desc ? '<div class="model-option-desc">' + escapeHtml(desc) + '</div>' : '') + '</button>';
+        }).join('');
+      }).join('');
+      return;
+    }
     menu.innerHTML = MODELS.map(function(m) {
       return '<button type="button" class="model-option' + (m.id === selectedModel ? ' active' : '') + '" data-model="' + m.id + '" role="option">' +
         '<div class="model-option-name">' + m.name + '</div>' +
@@ -1855,13 +2144,38 @@
     }).join('');
   }
   function setModel(id) {
+    id = String(id || '');
+    var bar = id.indexOf('|');
+    if (bar > 0) {
+      selectedProviderId = id.slice(0, bar);
+      id = id.slice(bar + 1);
+      try { localStorage.setItem(PROVIDER_ACTIVE_KEY, selectedProviderId); } catch(e) {}
+    }
     selectedModel = id;
     try { localStorage.setItem('ta_model', id); } catch(e) {}
+    scheduleSync();
     renderModelPicker();
     var picker = document.getElementById('model-picker');
     if (picker) picker.classList.remove('open');
     var btn = document.getElementById('model-picker-btn');
     if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+  function fillDefaultModelSelect() {
+    var modelSel = document.getElementById('set-default-model');
+    if (!modelSel) return;
+    if (MODEL_GROUPS.length) {
+      modelSel.innerHTML = MODEL_GROUPS.filter(function(g) { return g.models.length; }).map(function(g) {
+        return '<optgroup label="' + escapeHtml(g.provider.name) + '">' + g.models.map(function(m) {
+          var v = g.provider.id + '|' + m.id;
+          var sel = g.provider.id === selectedProviderId && m.id === selectedModel;
+          return '<option value="' + escapeHtml(v) + '"' + (sel ? ' selected' : '') + '>' + escapeHtml(m.name) + '</option>';
+        }).join('') + '</optgroup>';
+      }).join('');
+      return;
+    }
+    modelSel.innerHTML = MODELS.map(function(m) {
+      return '<option value="' + escapeHtml(m.id) + '"' + (m.id === selectedModel ? ' selected' : '') + '>' + escapeHtml(m.name) + '</option>';
+    }).join('');
   }
   function applyI18n() {
     document.querySelectorAll('[data-i18n]').forEach(function(el) {
@@ -2908,12 +3222,7 @@
     setChoice('ta_len_mode', localStorage.getItem('ta_len_mode') || 'normal');
     setChoice('ta_tone', localStorage.getItem('ta_tone') || 'auto');
     if (window.TA && TA.mountPicker) TA.mountPicker(document.getElementById('set-lang'));
-    var modelSel = document.getElementById('set-default-model');
-    if (modelSel) {
-      modelSel.innerHTML = MODELS.map(function(m) {
-        return '<option value="' + m.id + '"' + (m.id === selectedModel ? ' selected' : '') + '>' + m.name + '</option>';
-      }).join('');
-    }
+    fillDefaultModelSelect();
     var guest = document.getElementById('account-guest');
     var authed = document.getElementById('account-authed');
     if (currentUser && authToken) {
@@ -3222,7 +3531,7 @@
         .then(function(d) {
           if (d && d.user) {
             currentUser = d.user;
-            syncMeta.enabled = !!(d.config && d.config.sync);
+            syncMeta.enabled = !!(d.config && d.config.storage);
             serverDefaultProvider = !!(d.config && d.config.defaultProvider);
             serverDefaultModel = (d.config && d.config.defaultModel) || '';
             if (!activeProvider() && serverDefaultModel) setModel(serverDefaultModel);

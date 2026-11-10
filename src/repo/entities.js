@@ -68,7 +68,7 @@ function pick(def, input, { partial }) {
 
 const encode = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? JSON.stringify(v) : v)
 
-export async function listEntities(db, kind, { projectId, q, limit = 200, since } = {}, ownerId = OWNER) {
+export async function listEntities(db, kind, { projectId, q, limit = 200, since, full } = {}, ownerId = OWNER) {
   const def = ENTITIES[kind]
   const params = [ownerId]
   const where = ['owner_id = $1', 'deleted_at IS NULL']
@@ -82,9 +82,9 @@ export async function listEntities(db, kind, { projectId, q, limit = 200, since 
     params.push(`%${String(q).slice(0, 200).replace(/[\\%_]/g, (c) => '\\' + c)}%`)
     where.push(`(${col}) ILIKE $${params.length}`)
   }
-  params.push(Math.min(1000, Math.max(1, Number(limit) || 200)))
+  params.push(Math.min(2000, Math.max(1, Number(limit) || 200)))
   return db.query(
-    `SELECT ${def.listColumns || '*'} FROM ${def.table} WHERE ${where.join(' AND ')} ORDER BY ${def.order} LIMIT $${params.length}`,
+    `SELECT ${(!full && def.listColumns) || '*'} FROM ${def.table} WHERE ${where.join(' AND ')} ORDER BY ${def.order} LIMIT $${params.length}`,
     params,
   )
 }
@@ -94,9 +94,17 @@ export async function getEntity(db, kind, id, ownerId = OWNER) {
   return (await db.query(`SELECT * FROM ${def.table} WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL`, [id, ownerId]))[0] || null
 }
 
+/** 指向不存在（或已刪除）專案的 project_id 改為 NULL，避免外鍵錯誤（例如舊資料、跨裝置先刪專案）。 */
+export async function existingProjectId(db, projectId, ownerId = OWNER) {
+  if (!projectId) return null
+  const row = (await db.query(`SELECT id FROM projects WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL`, [projectId, ownerId]))[0]
+  return row ? row.id : null
+}
+
 export async function createEntity(db, kind, input, ownerId = OWNER) {
   const def = ENTITIES[kind]
   const values = pick(def, input, { partial: false })
+  if ('project_id' in values) values.project_id = await existingProjectId(db, values.project_id, ownerId)
   const id = input.id && ID_RE.test(String(input.id)) ? String(input.id) : crypto.randomUUID()
   const cols = ['id', 'owner_id', ...Object.keys(values)]
   const params = [id, ownerId, ...Object.values(values).map(encode)]
@@ -117,6 +125,7 @@ export async function createEntity(db, kind, input, ownerId = OWNER) {
 export async function updateEntity(db, kind, id, input, ownerId = OWNER) {
   const def = ENTITIES[kind]
   const values = pick(def, input, { partial: true })
+  if ('project_id' in values) values.project_id = await existingProjectId(db, values.project_id, ownerId)
   const keys = Object.keys(values)
   if (!keys.length) return getEntity(db, kind, id, ownerId)
   const params = [id, ownerId, ...Object.values(values).map(encode)]

@@ -5,7 +5,9 @@
   "description": "Personal AI on Netlify Functions + Neon Postgres (port of personal-ai)",
   "type": "module",
   "license": "MIT",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "node scripts/extract-assets.mjs && node scripts/addThemes.cjs",
     "dev": "npm run build && netlify dev",
@@ -18,6 +20,7 @@
     "@neondatabase/serverless": "^1.2.0"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.3.0"
+    "@electric-sql/pglite": "^0.3.0",
+    "jsdom": "^25.0.1"
   }
 }

@@ -153,7 +153,8 @@ test('D1 import maps legacy sync_items', async () => {
   ] }]
   const plan = planImport(parseD1Export(exportJson))
   const result = await runImport(db, plan)
-  assert.deepEqual([result.projects, result.documents, result.conversations, result.prompts, result.settings], [1, 1, 1, 2, 1])
+  assert.deepEqual([result.projects, result.documents, result.conversations, result.settings], [1, 1, 1, 2])
+  assert.equal(JSON.parse((await getSettings(db)).prompt_favs)[0], '寫一首詩')
   const conv = await getConversation(db, 'k1')
   assert.equal(conv.project_id, null) // 指向不存在的專案 → 設為 NULL
   assert.equal(conv.pinned, true)

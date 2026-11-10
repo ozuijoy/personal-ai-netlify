@@ -74,6 +74,8 @@ const ROUTES = [
       q: url.searchParams.get('q') || undefined,
       projectId: url.searchParams.has('project_id') ? url.searchParams.get('project_id') : undefined,
       since: url.searchParams.get('since') || undefined,
+      full: url.searchParams.get('full') === '1',
+      limit: url.searchParams.get('limit') || undefined,
     }),
   })],
   ['POST', new RegExp(`^/api/(${KINDS})$`), async ({ db, body, m }) => json({ ok: true, item: await createEntity(db, m[1], body) }, 201)],

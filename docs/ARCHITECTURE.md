@@ -1,6 +1,6 @@
 # Personal AI — Netlify + Neon 移植架構
 
-> 狀態：第一階段（後端基礎）已在本機完成，未部署、未推送。平台限制皆引自官方文件（2026-11-10 查閱），連結附於各節。
+> 狀態：第一、二階段（後端基礎、前端改為伺服器為主）已在本機完成，未部署、未推送。平台限制皆引自官方文件（2026-11-10 查閱），連結附於各節。
 
 ## 0. 總覽
 
@@ -152,11 +152,20 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 
 其他：首次登入新版時偵測本機舊資料，一鍵「匯入到伺服器」（用同一組 API，id 沿用、可重跑）；新增技能與 Memory 的設定頁。
 
+### 4.1 第二階段實作方式（已完成）
+
+- 原本的 D1 同步區塊整段換成「伺服器儲存層」，對外函式名稱不變（`scheduleSync`、`syncBootstrap`、`syncNow`），其餘 UI 程式幾乎不用改。
+- 啟動：讀伺服器的設定、個人資料、專案、文件、對話列表；只抓有變動的對話全文。伺服器為準，但本機尚未送出的修改會保留並送出。
+- 存檔：每次 `saveChats / saveDocuments / saveProjects / 儲存設定` 後 1.5 秒，只送雜湊有變的項目；失敗 15 秒後重試，資料仍留在本機。
+- 刪除：本機刪除 → 伺服器軟刪除；其他裝置刪除 → 下次同步時本機移除。
+- 首次使用：這個瀏覽器從未上傳過的對話、文件、專案、設定會自動上傳；`ta_providers_v1` 內的供應商（含 Key）上傳加密後**從瀏覽器刪除**。
+- 測試：`test/frontend.test.mjs` 用 jsdom 載入實際打包的 `app.js`，fetch 接到真的 router＋PGlite，驗證上述流程。
+
 ## 5. 空 API Key 與模型選單分組
 
 - 後端：`providerFromBody` 已允許空 Key（只擋換行與超長）；空 Key 時**不送 `Authorization` 標頭**；資料庫 `api_key_enc` 可為 NULL。已有測試。
-- 前端（第二階段）：移除 `saveProvider` 的 `apiKey.length < 8` 檢查；編輯時 Key 欄位留空 = 保留原 Key，另提供「清除 Key」按鈕（`clear_key: true`）。
-- 模型選單：改讀 `/api/models/grouped`，以 `<optgroup>`／分組標題呈現「Groq（內建）」與每個自訂供應商各自的模型；選取值為 `provider_id + model_id`，不再混用同一個 `MODELS` 陣列。內建 Groq 只在伺服器設定 `GROQ_API_KEY` 時出現。
+- 前端（已完成）：移除 `apiKey.length < 8` 檢查；編輯時 Key 欄位留空 = 保留原 Key，勾選「清除已儲存的 Key」改為無 Key；模型欄位可填多個（逗號分隔），「抓取模型」對已儲存的供應商由伺服器代查，Key 不經過瀏覽器。
+- 模型選單（已完成）：改讀 `/api/models/grouped`，以 `<optgroup>`／分組標題呈現「Groq（內建）」與每個自訂供應商各自的模型；選取值為 `provider_id + model_id`，不再混用同一個 `MODELS` 陣列。內建 Groq 只在伺服器設定 `GROQ_API_KEY` 時出現。
 
 ## 6. 從 D1 遷移
 
@@ -173,7 +182,7 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 | 階段 | 內容 | 狀態 |
 |---|---|---|
 | 1 後端基礎 | Netlify 結構、Neon schema、登入節流、AES-GCM、供應商／模型（含空 Key、分組）、設定、個人資料、對話、專案、文件＋檢索、技能、Memory、Prompt 的 CRUD API、Edge 串流、D1 匯入腳本、測試 | **完成（本機）** |
-| 2 前端改為伺服器為主 | api 模組、供應商設定頁、分組模型選單、對話／專案／文件改走 API、本機資料一鍵匯入、移除同步；建 Neon 專案與 Netlify 站並做第一次部署（需你同意） | 下一步 |
+| 2 前端改為伺服器為主 | 伺服器儲存層取代 D1 同步、供應商設定頁（Key 加密存伺服器、可留空、可清除）、分組模型選單、聊天送 `provider_id`、知識庫改伺服器檢索、舊瀏覽器資料與 Key 自動上傳 | **完成（本機）**；首次部署待你同意 |
 | 3 檔案 | Neon Object Storage bucket＋CORS、presigned 上傳、pdf.js／mammoth 抽文字、專案檔案 | |
 | 4 技能與 Memory | 設定頁、技能注入系統提示（always／keyword／手動）、對話後建議寫入 Memory（需使用者確認） | |
 | 5 強化 | pgvector 混合檢索、金鑰重加密腳本、匯出備份 | |

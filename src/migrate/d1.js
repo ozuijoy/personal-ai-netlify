@@ -37,13 +37,9 @@ export function planImport(rows) {
       continue
     }
     if (type === 'prompt') {
-      const list = safeParse(r.value)
-      if (Array.isArray(list)) {
-        list.slice(0, 500).forEach((p, i) => {
-          const content = typeof p === 'string' ? p : p && (p.text || p.content || p.prompt)
-          if (content) plan.prompts.push({ kind: id === 'recent' ? 'recent' : 'favorite', title: (p && p.title) || '', content: String(content), _order: i })
-        })
-      }
+      // 前端以字串原樣保存 ta_prompt_favs / ta_prompt_recent，新版同樣放在 settings（prompt_favs / prompt_recent）。
+      if (id === 'favs' || id === 'recent') plan.settings[`prompt_${id}`] = String(r.value ?? '[]')
+      else plan.skipped.push({ key, reason: 'unknown prompt list' })
       continue
     }
     const value = safeParse(r.value)

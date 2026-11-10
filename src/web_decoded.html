@@ -263,6 +263,9 @@
     .model-option:hover, .model-option.active { background: rgba(127,127,127,0.14); }
     .model-option-name { font-weight: 650; font-size: 0.88rem; }
     .model-option-desc { font-size: 0.72rem; color: var(--dim); margin-top: 2px; line-height: 1.35; }
+    .model-group-label { font-size: 0.68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); padding: 8px 10px 4px; }
+    .model-group-label:not(:first-child) { border-top: 1px solid rgba(127,127,127,0.18); margin-top: 4px; }
+    .model-group-empty { padding: 4px 10px 8px; }
     .lang-select {
       appearance: none; -webkit-appearance: none; width: 100%;
       background: var(--elev) no-repeat right 10px center;
@@ -1503,7 +1506,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
         
         <div id="pane-providers" class="settings-pane">
           <div class="settings-section-title">供應商</div>
-          <p class="settings-section-desc">連線到任何 OpenAI 相容的 <code>/chat/completions</code> 服務。金鑰只保存在這個瀏覽器，不會同步到 D1。</p>
+          <p class="settings-section-desc">連線到任何 OpenAI 相容的 <code>/chat/completions</code> 服務。API Key 在伺服器端加密保存，不會回傳到瀏覽器；自建模型可以不填 Key。</p>
           <p class="settings-hint" id="server-default-hint">若部署設定了 <code>GROQ_API_KEY</code>，未新增供應商時會使用伺服器預設 Groq。</p>
           <div class="form-group">
             <label class="form-label">使用中的供應商</label>
@@ -1523,10 +1526,10 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
             </div>
             <div class="settings-kv">
               <div class="settings-kv-label">API Key</div>
-              <div class="settings-kv-control"><input id="provider-key" class="form-input" type="password" placeholder="sk-…" autocomplete="off"></div>
+              <div class="settings-kv-control"><input id="provider-key" class="form-input" type="password" placeholder="sk-…（自建模型可留空）" autocomplete="off"><label class="settings-hint" style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="checkbox" id="provider-clear-key" disabled> 清除已儲存的 Key</label></div>
             </div>
             <div class="settings-kv">
-              <div class="settings-kv-label">模型</div>
+              <div class="settings-kv-label">模型（多個以逗號分隔）</div>
               <div class="settings-kv-control"><input id="provider-model" class="form-input" type="text" list="provider-model-list" placeholder="openai/gpt-oss-120b" autocomplete="off"><datalist id="provider-model-list"></datalist></div>
             </div>
             <div class="settings-actions" style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1625,10 +1628,10 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
           </div>
           <div class="settings-card">
             <div class="settings-actions" style="display:flex;gap:6px;flex-wrap:wrap">
-              <button type="button" id="sync-now-btn" class="topbar-action-btn">立即同步</button>
+              <button type="button" id="sync-now-btn" class="topbar-action-btn">與伺服器同步</button>
               <button type="button" id="settings-logout-btn" class="topbar-action-btn">登出</button>
             </div>
-            <p id="sync-status" class="settings-hint" style="min-height:18px">同步尚未啟動</p>
+            <p id="sync-status" class="settings-hint" style="min-height:18px">尚未連線伺服器</p>
           </div>
         </div>
       </div>
@@ -1776,7 +1779,45 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   ];
   var PROVIDERS_KEY = 'ta_providers_v1';
   var PROVIDER_ACTIVE_KEY = 'ta_provider_active';
+  // 伺服器模式（Netlify + Neon）：供應商與 Key 存在伺服器（Key 加密、不回傳），模型選單依供應商分組。
+  var SERVER_PROVIDERS = [];   // [{id, name, base_url, has_key, api_key_hint, models:[{model_id, display_name}]}]
+  var MODEL_GROUPS = [];       // [{provider:{id,name,builtin,has_key}, models:[{id,name}]}]
+  var selectedProviderId = '';
+  try { selectedProviderId = localStorage.getItem(PROVIDER_ACTIVE_KEY) || ''; } catch(e) {}
+  function serverMode() { return !!(syncMeta && syncMeta.enabled); }
+  function findModel(pid, mid) {
+    for (var i = 0; i < MODEL_GROUPS.length; i++) {
+      var g = MODEL_GROUPS[i];
+      if (g.provider.id !== pid) continue;
+      for (var j = 0; j < g.models.length; j++) if (g.models[j].id === mid) return { group: g, model: g.models[j] };
+    }
+    return null;
+  }
+  function firstModel() {
+    for (var i = 0; i < MODEL_GROUPS.length; i++) if (MODEL_GROUPS[i].models.length) return { group: MODEL_GROUPS[i], model: MODEL_GROUPS[i].models[0] };
+    return null;
+  }
+  async function loadServerProviders() {
+    if (!serverMode()) return;
+    var r = await storeFetch('GET', '/api/providers');
+    SERVER_PROVIDERS = (r.providers || []).filter(function(p) { return !p.builtin; });
+    var g = await storeFetch('GET', '/api/models/grouped');
+    MODEL_GROUPS = Array.isArray(g.groups) ? g.groups : [];
+    if (!findModel(selectedProviderId, selectedModel)) {
+      var f = firstModel();
+      if (f) setModel(f.group.provider.id + '|' + f.model.id);
+    }
+    refreshProviderSelect();
+    renderModelPicker();
+    fillDefaultModelSelect();
+  }
   function readProviders() {
+    if (serverMode()) {
+      return SERVER_PROVIDERS.map(function(p) {
+        return { id: p.id, name: p.name, baseUrl: p.base_url, apiKey: '', hasKey: !!p.has_key, keyHint: p.api_key_hint || '',
+          models: (p.models || []).map(function(m) { return m.model_id; }), model: p.models && p.models[0] ? p.models[0].model_id : '' };
+      });
+    }
     try {
       var list = JSON.parse(localStorage.getItem(PROVIDERS_KEY) || '[]');
       return Array.isArray(list) ? list.filter(function(p) { return p && p.id && p.baseUrl; }) : [];
@@ -1790,20 +1831,28 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return null;
   }
+  // 只用於舊的「瀏覽器保存 Key」模式；伺服器模式回傳 null，聊天改送 provider_id。
   function activeProvider() {
+    if (serverMode()) return null;
     var list = readProviders();
     if (!list.length) return null;
     var id = localStorage.getItem(PROVIDER_ACTIVE_KEY) || '';
     return providerById(id) || list[0];
   }
   function ensureModel(id) {
-    if (!id) return;
+    if (!id || serverMode()) return;
     for (var i = 0; i < MODELS.length; i++) if (MODELS[i].id === id) return;
     MODELS.push({ id: id, name: id, desc: '' });
   }
+  function parseModelList(text) {
+    var seen = {}, out = [];
+    String(text || '').split(/[,\n]/).forEach(function(s) { s = s.trim(); if (s && !seen[s] && s.length <= 200) { seen[s] = true; out.push(s); } });
+    return out.slice(0, 200);
+  }
   function providerFormValues() {
     var get = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
-    return { name: get('provider-name'), baseUrl: get('provider-base'), apiKey: get('provider-key'), model: get('provider-model') };
+    var clr = document.getElementById('provider-clear-key');
+    return { name: get('provider-name'), baseUrl: get('provider-base'), apiKey: get('provider-key'), model: get('provider-model'), clearKey: !!(clr && clr.checked) };
   }
   function setProviderStatus(text, bad) {
     var el = document.getElementById('provider-status');
@@ -1811,53 +1860,88 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     el.textContent = text || '';
     el.style.color = bad ? 'var(--red)' : 'var(--green)';
   }
+  function editingProviderId() {
+    var sel = document.getElementById('provider-active-select');
+    return sel && sel.value !== '__new' ? sel.value : '';
+  }
   function loadProviderForm(id) {
     var p = id ? providerById(id) : null;
     var set = function(elId, value) { var el = document.getElementById(elId); if (el) el.value = value || ''; };
     set('provider-name', p ? p.name : '');
     set('provider-base', p ? p.baseUrl : '');
-    set('provider-key', p ? p.apiKey : '');
-    set('provider-model', p ? p.model : '');
-    setProviderStatus(p ? ('使用中：' + (p.name || p.baseUrl)) : '尚未新增供應商', false);
+    set('provider-key', serverMode() ? '' : (p ? p.apiKey : ''));
+    set('provider-model', p ? (serverMode() ? (p.models || []).join(', ') : p.model) : '');
+    var keyEl = document.getElementById('provider-key');
+    if (keyEl) keyEl.placeholder = serverMode() && p ? (p.hasKey ? ('已加密保存（' + p.keyHint + '），留空表示不變') : '未設定 Key（可留空）') : 'sk-…（自建模型可留空）';
+    var clr = document.getElementById('provider-clear-key');
+    if (clr) { clr.checked = false; clr.disabled = !(serverMode() && p && p.hasKey); }
+    setProviderStatus(p ? ('編輯中：' + (p.name || p.baseUrl)) : '新增供應商', false);
   }
   function refreshProviderSelect() {
     var sel = document.getElementById('provider-active-select');
     if (!sel) return;
     var list = readProviders();
-    var active = localStorage.getItem(PROVIDER_ACTIVE_KEY) || (list[0] && list[0].id) || '';
+    var keep = sel.value;
+    var active = serverMode() ? selectedProviderId : (localStorage.getItem(PROVIDER_ACTIVE_KEY) || (list[0] && list[0].id) || '');
     sel.innerHTML = list.map(function(p) {
       return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.name || p.baseUrl) + '</option>';
     }).join('') + '<option value="__new">＋ 新增供應商</option>';
-    sel.value = list.some(function(p) { return p.id === active; }) ? active : (list[0] ? list[0].id : '__new');
+    var want = list.some(function(p) { return p.id === keep; }) ? keep : active;
+    sel.value = list.some(function(p) { return p.id === want; }) ? want : (list[0] ? list[0].id : '__new');
     loadProviderForm(sel.value === '__new' ? '' : sel.value);
   }
-  function saveProvider() {
+  async function saveProvider() {
     var v = providerFormValues();
     if (!v.name) v.name = '供應商';
     if (!/^https:\/\//i.test(v.baseUrl)) { setProviderStatus('Base URL 必須是 HTTPS', true); return; }
     try { new URL(v.baseUrl); } catch(e) { setProviderStatus('Base URL 格式不正確', true); return; }
-    if (!v.apiKey || v.apiKey.length < 8) { setProviderStatus('請填寫有效的 API Key', true); return; }
-    if (!v.model) { setProviderStatus('請填寫模型 ID', true); return; }
+    var models = parseModelList(v.model);
+    if (!models.length) { setProviderStatus('請填寫至少一個模型 ID（多個以逗號分隔）', true); return; }
+    // API Key 可以留空：自建模型或不需驗證的相容閘道。
+    if (serverMode()) {
+      var currentId = editingProviderId();
+      var body = { name: v.name, base_url: v.baseUrl.replace(/\/+$/, ''), models: models };
+      if (v.apiKey) body.api_key = v.apiKey;
+      else if (currentId && v.clearKey) { body.api_key = ''; body.clear_key = true; }
+      setProviderStatus('儲存中…', false);
+      try {
+        var r = currentId ? await storeFetch('PATCH', '/api/providers/' + encodeURIComponent(currentId), body)
+                          : await storeFetch('POST', '/api/providers', body);
+        var saved = r.provider;
+        var sel = document.getElementById('provider-active-select');
+        if (sel && saved) { sel.innerHTML += '<option value="' + escapeHtml(saved.id) + '"></option>'; sel.value = saved.id; }
+        await loadServerProviders();
+        if (saved) setModel(saved.id + '|' + models[0]);
+        var keyEl = document.getElementById('provider-key'); if (keyEl) keyEl.value = '';
+        setProviderStatus('已儲存：' + v.name + (saved && saved.has_key ? '（Key 已加密）' : '（無 Key）'), false);
+      } catch(e) { setProviderStatus(e && e.message ? e.message : '儲存失敗', true); }
+      return;
+    }
     var list = readProviders();
-    var sel = document.getElementById('provider-active-select');
-    var currentId = sel && sel.value !== '__new' ? sel.value : '';
-    var existing = currentId ? providerById(currentId) : null;
-    var item = { id: existing ? existing.id : ('p' + Date.now()), name: v.name, baseUrl: v.baseUrl.replace(/\/+$/, ''), apiKey: v.apiKey, model: v.model };
+    var lid = editingProviderId();
+    var existing = lid ? providerById(lid) : null;
+    var item = { id: existing ? existing.id : ('p' + Date.now()), name: v.name, baseUrl: v.baseUrl.replace(/\/+$/, ''), apiKey: v.apiKey, model: models[0] };
     if (existing) {
       for (var i = 0; i < list.length; i++) if (list[i].id === existing.id) list[i] = item;
     } else list.push(item);
     writeProviders(list);
     localStorage.setItem(PROVIDER_ACTIVE_KEY, item.id);
     ensureModel(item.model);
-    if (sel) sel.value = item.id;
+    var lsel = document.getElementById('provider-active-select');
+    if (lsel) lsel.value = item.id;
     setModel(item.model);
     setProviderStatus('已儲存：' + item.name, false);
   }
-  function deleteProvider() {
-    var sel = document.getElementById('provider-active-select');
-    var id = sel ? sel.value : '';
-    if (!id || id === '__new') { setProviderStatus('目前沒有可刪除的供應商', true); return; }
+  async function deleteProvider() {
+    var id = editingProviderId();
+    if (!id) { setProviderStatus('目前沒有可刪除的供應商', true); return; }
     if (!confirm('刪除這個供應商設定？')) return;
+    if (serverMode()) {
+      try { await storeFetch('DELETE', '/api/providers/' + encodeURIComponent(id)); } catch(e) { setProviderStatus(e.message || '刪除失敗', true); return; }
+      await loadServerProviders();
+      setProviderStatus('已刪除', false);
+      return;
+    }
     var list = readProviders().filter(function(p) { return p.id !== id; });
     writeProviders(list);
     localStorage.setItem(PROVIDER_ACTIVE_KEY, list[0] ? list[0].id : '');
@@ -1866,20 +1950,27 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   }
   async function fetchProviderModels(apply) {
     var v = providerFormValues();
-    if (!v.baseUrl || !v.apiKey) { setProviderStatus('請先填寫 Base URL 與 API Key', true); return; }
+    var currentId = editingProviderId();
+    if (!v.baseUrl) { setProviderStatus('請先填寫 Base URL', true); return; }
     setProviderStatus('正在連線…', false);
     try {
-      var res = await fetch('/api/models', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseUrl: v.baseUrl, apiKey: v.apiKey }) });
-      var data = await res.json().catch(function() { return {}; });
-      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      var data;
+      if (serverMode() && currentId && !v.apiKey) {
+        // 已儲存的供應商：由伺服器解密 Key 後代為查詢，Key 不經過瀏覽器
+        data = await storeFetch('POST', '/api/providers/' + encodeURIComponent(currentId) + '/discover', {});
+      } else {
+        var res = await fetch('/api/models', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseUrl: v.baseUrl, apiKey: v.apiKey }) });
+        data = await res.json().catch(function() { return {}; });
+        if (!res.ok) throw new Error(data.message || data.error || ('HTTP ' + res.status));
+      }
       var models = Array.isArray(data.models) ? data.models : [];
       var list = document.getElementById('provider-model-list');
       if (list) list.innerHTML = models.map(function(m) { return '<option value="' + escapeHtml(m) + '"></option>'; }).join('');
       if (apply && models.length) {
         var input = document.getElementById('provider-model');
-        if (input) input.value = models[0];
+        if (input) input.value = serverMode() ? models.slice(0, 50).join(', ') : models[0];
       }
-      setProviderStatus('連線成功，取得 ' + models.length + ' 個模型', false);
+      setProviderStatus('連線成功，取得 ' + models.length + ' 個模型' + (apply && serverMode() && models.length ? '，可刪掉不需要的再儲存' : ''), false);
     } catch(e) {
       setProviderStatus(e && e.message ? e.message : '連線失敗', true);
     }
@@ -1897,21 +1988,23 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     var active = activeProvider();
     if (active) { ensureModel(active.model); if (active.model) setModel(active.model); }
   }
-  var SYNC_META_KEY = 'ta_sync_meta_v1';
-  var syncMeta = { enabled: false, lastCursor: 0, known: { chat: [], doc: [], project: [] }, sent: {}, values: {}, timer: 0, applying: false, busy: false };
+  // ── 伺服器儲存（Netlify + Neon）─────────────────────────────────
+  // 取代舊 D1 同步：伺服器為主，localStorage 只當快取。
+  // 推送：saveChats / saveDocuments / saveProjects / 儲存設定 → scheduleSync() → 1.5 秒後把有變動的項目送到伺服器。
+  // 拉取：啟動時與按「立即同步」時，以伺服器為準更新本機；本機尚未送出的修改保留並稍後送出。
+  var STORE_META_KEY = 'ta_store_meta_v2';
+  var syncMeta = { enabled: false, applying: false, busy: false, timer: 0, pending: false, hashes: {}, srv: {}, providersImported: false };
   try {
-    var savedSync = JSON.parse(localStorage.getItem(SYNC_META_KEY) || '{}');
-    if (savedSync && typeof savedSync === 'object') {
-      syncMeta.lastCursor = Number(savedSync.lastCursor) || 0;
-      syncMeta.sent = savedSync.sent && typeof savedSync.sent === 'object' ? savedSync.sent : {};
-      syncMeta.values = savedSync.values && typeof savedSync.values === 'object' ? savedSync.values : {};
-      if (savedSync.known && typeof savedSync.known === 'object') {
-        ['chat','doc','project'].forEach(function(k) { syncMeta.known[k] = Array.isArray(savedSync.known[k]) ? savedSync.known[k] : []; });
-      }
+    var savedStore = JSON.parse(localStorage.getItem(STORE_META_KEY) || '{}');
+    if (savedStore && typeof savedStore === 'object') {
+      syncMeta.hashes = savedStore.hashes && typeof savedStore.hashes === 'object' ? savedStore.hashes : {};
+      syncMeta.srv = savedStore.srv && typeof savedStore.srv === 'object' ? savedStore.srv : {};
+      syncMeta.providersImported = !!savedStore.providersImported;
     }
-  } catch(eSync) {}
+    localStorage.removeItem('ta_sync_meta_v1');
+  } catch(eStore) {}
   function saveSyncMeta() {
-    try { localStorage.setItem(SYNC_META_KEY, JSON.stringify({ lastCursor: syncMeta.lastCursor, known: syncMeta.known, sent: syncMeta.sent, values: syncMeta.values })); } catch(e) {}
+    try { localStorage.setItem(STORE_META_KEY, JSON.stringify({ hashes: syncMeta.hashes, srv: syncMeta.srv, providersImported: syncMeta.providersImported })); } catch(e) {}
   }
   function setSyncStatus(text, bad) {
     var el = document.getElementById('sync-status');
@@ -1919,158 +2012,329 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     el.textContent = text || '';
     el.style.color = bad ? 'var(--red)' : 'var(--muted)';
   }
-  function syncJson(value) {
-    try { return JSON.stringify(value); } catch(e) { return ''; }
+  // localStorage 鍵 → 伺服器 settings 鍵。ta_ephemeral、ta_project_active 是裝置狀態，不上傳。
+  var STORE_SETTINGS = {
+    ta_custom_prompt: 'custom_prompt', ta_tone: 'tone', ta_len_mode: 'len_mode', ta_auto_search: 'auto_search',
+    ta_use_docs: 'use_docs', ta_timezone: 'timezone', ta_adapt: 'adapt',
+    ta_prompt_favs: 'prompt_favs', ta_prompt_recent: 'prompt_recent',
+    ta_model: 'active_model_id', ta_provider_active: 'active_provider_id',
+    ta_theme: 'ui.theme', ta_font: 'ui.font', ta_accent: 'ui.accent', ta_compact_sb: 'ui.compact_sb',
+    ta_reduce_motion: 'ui.reduce_motion', ta_show_time: 'ui.show_time', ta_enter_send: 'ui.enter_send',
+    ta_confirm_del: 'ui.confirm_del', ta_auto_read: 'ui.auto_read'
+  };
+  function storeHash(value) {
+    var s = typeof value === 'string' ? value : JSON.stringify(value);
+    var h = 0x811c9dc5;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0; }
+    return s.length + ':' + h.toString(36);
   }
-  function addSyncChange(changes, key, value, updatedAt, force) {
-    if (!force && syncMeta.sent[key] && Number(syncMeta.sent[key]) >= updatedAt) return;
-    changes.push({ key: key, value: value, updatedAt: updatedAt, deleted: false });
+  async function storeFetch(method, path, body) {
+    var opts = { method: method, credentials: 'same-origin', headers: {} };
+    if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    var res = await fetch(path, opts);
+    if (res.status === 401) { location.href = '/login'; throw new Error('請重新登入'); }
+    var data = await res.json().catch(function() { return {}; });
+    if (!res.ok && !(method === 'DELETE' && res.status === 404)) throw new Error(data.message || data.error || ('HTTP ' + res.status));
+    return data;
   }
-  function collectSyncChanges(force) {
-    var changes = [];
-    var present = { chat: {}, doc: {}, project: {} };
-    var now = Date.now();
-    Object.keys(chats).forEach(function(id) {
-      var c = chats[id];
-      if (!c || c.ephemeral) return;
-      present.chat[id] = true;
-      var at = Number(c.updatedAt || c.at || now) || now;
-      addSyncChange(changes, 'chat:' + id, syncJson(c), at, force);
-    });
-    documents.forEach(function(d) {
-      if (!d || !d.id) return;
-      present.doc[d.id] = true;
-      var at = Number(d.updatedAt || now) || now;
-      addSyncChange(changes, 'doc:' + d.id, syncJson(d), at, force);
-    });
-    projects.forEach(function(pr) {
-      if (!pr || !pr.id) return;
-      present.project[pr.id] = true;
-      var at = Number(pr.updatedAt || now) || now;
-      addSyncChange(changes, 'project:' + pr.id, syncJson(pr), at, force);
-    });
-    [['prompt','favs','ta_prompt_favs'],['prompt','recent','ta_prompt_recent'],['setting','custom_prompt','ta_custom_prompt'],['setting','tone','ta_tone'],['setting','len_mode','ta_len_mode'],['setting','auto_search','ta_auto_search'],['setting','use_docs','ta_use_docs']].forEach(function(row) {
-      var key = row[0] + ':' + row[1];
-      var value = '';
-      try { value = localStorage.getItem(row[2]) || ''; } catch(e) {}
-      if (!force && syncMeta.values[key] === value) return;
-      changes.push({ key: key, value: value, updatedAt: now, deleted: false });
-    });
-    ['chat','doc','project'].forEach(function(type) {
-      (syncMeta.known[type] || []).forEach(function(id) {
-        if (present[type][id]) return;
-        changes.push({ key: type + ':' + id, value: '', updatedAt: now, deleted: true });
-      });
-    });
-    return changes;
+  window.TA_STORE = { fetch: storeFetch };
+
+  // 本機格式 ↔ 伺服器格式
+  function chatForHash(c) {
+    return { title: c.title || '', projectId: c.projectId || null, pinned: !!c.pinned, archived: !!c.archived,
+      messages: (c.messages || []).map(function(m) { return [m.role, m.content, m.sources || [], m.image || '']; }) };
   }
+  function chatToServer(id, c) {
+    return { id: id, title: String(c.title || '').slice(0, 300), project_id: c.projectId || null, pinned: !!c.pinned, archived: !!c.archived,
+      messages: (c.messages || []).map(function(m) {
+        return { role: m.role === 'ai' ? 'assistant' : m.role, content: m.content || '', sources: m.sources || [], at: m.at, image: m.image && String(m.image).length <= 2000 ? m.image : undefined };
+      }) };
+  }
+  function chatFromServer(sc) {
+    return { title: sc.title || '', projectId: sc.project_id || null, pinned: !!sc.pinned, archived: !!sc.archived,
+      updatedAt: Date.parse(sc.updated_at) || Date.now(),
+      messages: (sc.messages || []).map(function(m) {
+        var out = { role: m.role === 'assistant' ? 'ai' : m.role, content: m.content || '', sources: m.sources || [], at: Date.parse(m.created_at) || Date.now() };
+        if (m.meta && m.meta.image) out.image = m.meta.image;
+        return out;
+      }) };
+  }
+  function docForHash(d) { return { t: d.title || '', c: d.content || '', ty: d.type || 'note', p: d.projectId || null }; }
+  function docToServer(d) {
+    var ty = d.type === 'file' || d.type === 'web' || d.type === 'knowledge' ? d.type : 'note';
+    return { id: d.id, title: String(d.title || '').slice(0, 500), content: String(d.content || ''), doc_type: ty, project_id: d.projectId || null,
+      data: { legacy_type: d.type || null, created: d.created || null, lang: d.lang || null, size: d.size || null } };
+  }
+  function docFromServer(sd) {
+    var data = sd.data || {};
+    return { id: sd.id, title: sd.title || '', content: sd.content || '', type: data.legacy_type || sd.doc_type || 'note',
+      projectId: sd.project_id || null, created: data.created || Date.parse(sd.created_at) || Date.now(), lang: data.lang || undefined,
+      updatedAt: Date.parse(sd.updated_at) || Date.now() };
+  }
+  function projectForHash(p) { var c = {}; Object.keys(p).forEach(function(k) { if (k !== 'updatedAt') c[k] = p[k]; }); return c; }
+  function projectToServer(p) {
+    var data = {};
+    Object.keys(p).forEach(function(k) { if (['id', 'name', 'description', 'instructions', 'updatedAt'].indexOf(k) === -1) data[k] = p[k]; });
+    return { id: p.id, name: String(p.name || '未命名專案').slice(0, 200), description: p.description || '', instructions: p.instructions || '', data: data };
+  }
+  function projectFromServer(sp) {
+    var p = {};
+    var data = sp.data || {};
+    Object.keys(data).forEach(function(k) { p[k] = data[k]; });
+    p.id = sp.id; p.name = sp.name; p.description = sp.description || ''; p.instructions = sp.instructions || '';
+    p.updatedAt = Date.parse(sp.updated_at) || Date.now();
+    return p;
+  }
+  function settingsSnapshot() {
+    var out = {};
+    Object.keys(STORE_SETTINGS).forEach(function(lk) {
+      var v = null;
+      try { v = localStorage.getItem(lk); } catch(e) {}
+      if (v !== null) out[STORE_SETTINGS[lk]] = v;
+    });
+    return out;
+  }
+  function localProfileRaw() { try { return localStorage.getItem('ta_profile') || ''; } catch(e) { return ''; } }
+
   async function pullSync() {
     if (!syncMeta.enabled || syncMeta.busy) return false;
     syncMeta.busy = true;
+    syncMeta.applying = true;
+    var imported = 0;
     try {
-      var res = await fetch('/api/sync?since=' + encodeURIComponent(String(syncMeta.lastCursor || 0)) + '&limit=1000', { credentials: 'same-origin' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      var data = await res.json();
-      var items = Array.isArray(data.items) ? data.items : [];
-      if (!items.length) { setSyncStatus('已同步', false); return true; }
-      syncMeta.applying = true;
-      var touchedChats = false, touchedDocs = false, touchedProjects = false;
-      items.forEach(function(item) {
-        var key = String(item.key || '');
-        var parts = key.split(':');
-        var type = parts[0], id = parts.slice(1).join(':');
-        if (!id) return;
-        if (item.deleted) {
-          if (type === 'chat' && chats[id]) { delete chats[id]; touchedChats = true; }
-          if (type === 'doc') { var nd = documents.filter(function(d) { return d.id !== id; }); if (nd.length !== documents.length) { documents = nd; touchedDocs = true; } }
-          if (type === 'project') { var np = projects.filter(function(pr) { return pr.id !== id; }); if (np.length !== projects.length) { projects = np; touchedProjects = true; } }
-        } else if (type === 'chat') {
-          try {
-            var chat = JSON.parse(item.value);
-            if (!chats[id] || Number(item.updatedAt) >= Number(chats[id].updatedAt || 0)) { chats[id] = chat; touchedChats = true; }
-          } catch(e) {}
-        } else if (type === 'doc') {
-          try {
-            var doc = JSON.parse(item.value);
-            var found = false;
-            for (var i = 0; i < documents.length; i++) if (documents[i].id === id) { found = true; if (Number(item.updatedAt) >= Number(documents[i].updatedAt || 0)) documents[i] = doc; break; }
-            if (!found) { documents.push(doc); touchedDocs = true; }
-          } catch(e) {}
-        } else if (type === 'project') {
-          try {
-            var proj = JSON.parse(item.value);
-            var pfound = false;
-            for (var j = 0; j < projects.length; j++) if (projects[j].id === id) { pfound = true; if (Number(item.updatedAt) >= Number(projects[j].updatedAt || 0)) projects[j] = proj; break; }
-            if (!pfound) { projects.push(proj); touchedProjects = true; }
-          } catch(e) {}
-        } else if (type === 'prompt') {
-          var pkey = id === 'favs' ? 'ta_prompt_favs' : id === 'recent' ? 'ta_prompt_recent' : '';
-          if (pkey) { try { localStorage.setItem(pkey, item.value || '[]'); } catch(e) {} }
-        } else if (type === 'setting') {
-          var skey = { custom_prompt: 'ta_custom_prompt', tone: 'ta_tone', len_mode: 'ta_len_mode', auto_search: 'ta_auto_search', use_docs: 'ta_use_docs' }[id];
-          if (skey) { try { localStorage.setItem(skey, item.value || ''); } catch(e) {} }
-        }
-        syncMeta.sent[key] = Number(item.updatedAt) || 0;
-        syncMeta.lastCursor = Math.max(syncMeta.lastCursor || 0, Number(item.updatedAt) || 0);
+      // 1) 設定：伺服器有值 → 覆蓋本機；本機有、伺服器沒有 → 稍後推送
+      var sres = await storeFetch('GET', '/api/settings');
+      var serverSettings = sres.settings || {};
+      Object.keys(STORE_SETTINGS).forEach(function(lk) {
+        var sk = STORE_SETTINGS[lk];
+        if (!(sk in serverSettings)) return;
+        var v = serverSettings[sk];
+        var str = typeof v === 'string' ? v : JSON.stringify(v);
+        var local = localStorage.getItem(lk);
+        var h = syncMeta.hashes['setting:' + sk];
+        if (local !== null && h && h !== storeHash(local)) return; // 本機有未送出的修改
+        try { localStorage.setItem(lk, str); } catch(e) {}
+        syncMeta.hashes['setting:' + sk] = storeHash(str);
       });
-      if (touchedChats) { saveChats(); renderSidebar(); if (chats[currentChatId]) loadChatView(); }
-      if (touchedDocs) { saveDocuments(); renderSidebar(); }
-      if (touchedProjects) { saveProjects(); renderSidebar(); }
+      selectedModel = localStorage.getItem('ta_model') || selectedModel;
+      // 2) 個人資料
+      var pres = await storeFetch('GET', '/api/profile');
+      if (pres.profile && Object.keys(pres.profile).length) {
+        var pstr = JSON.stringify(pres.profile);
+        var ph = syncMeta.hashes.profile;
+        if (!(ph && ph !== storeHash(localProfileRaw()))) {
+          try { localStorage.setItem('ta_profile', pstr); } catch(e) {}
+          syncMeta.hashes.profile = storeHash(pstr);
+        }
+      }
+      // 3) 專案
+      var prj = (await storeFetch('GET', '/api/projects?limit=2000')).items || [];
+      var touchedProjects = false;
+      var serverProjectIds = {};
+      prj.forEach(function(sp) {
+        serverProjectIds[sp.id] = true;
+        var local = null, idx = -1;
+        for (var i = 0; i < projects.length; i++) if (projects[i] && projects[i].id === sp.id) { local = projects[i]; idx = i; break; }
+        var key = 'project:' + sp.id;
+        if (local && syncMeta.hashes[key] && syncMeta.hashes[key] !== storeHash(projectForHash(local))) return;
+        if (syncMeta.srv[key] === sp.updated_at && local) return;
+        var np = projectFromServer(sp);
+        if (idx >= 0) projects[idx] = np; else projects.push(np);
+        syncMeta.hashes[key] = storeHash(projectForHash(np));
+        syncMeta.srv[key] = sp.updated_at;
+        touchedProjects = true;
+      });
+      projects = projects.filter(function(p) {
+        if (!p || !p.id || serverProjectIds[p.id]) return true;
+        if (syncMeta.hashes['project:' + p.id]) { delete syncMeta.hashes['project:' + p.id]; touchedProjects = true; return false; } // 其他裝置已刪除
+        imported++; return true; // 從未上傳 → 保留並推送
+      });
+      // 4) 文件（知識庫）
+      var docs = (await storeFetch('GET', '/api/documents?full=1&limit=2000')).items || [];
+      var touchedDocs = false;
+      var serverDocIds = {};
+      docs.forEach(function(sd) {
+        serverDocIds[sd.id] = true;
+        var local = null, idx = -1;
+        for (var i = 0; i < documents.length; i++) if (documents[i] && documents[i].id === sd.id) { local = documents[i]; idx = i; break; }
+        var key = 'doc:' + sd.id;
+        if (local && syncMeta.hashes[key] && syncMeta.hashes[key] !== storeHash(docForHash(local))) return;
+        if (syncMeta.srv[key] === sd.updated_at && local) return;
+        var nd = docFromServer(sd);
+        if (idx >= 0) documents[idx] = nd; else documents.push(nd);
+        syncMeta.hashes[key] = storeHash(docForHash(nd));
+        syncMeta.srv[key] = sd.updated_at;
+        touchedDocs = true;
+      });
+      documents = documents.filter(function(d) {
+        if (!d || !d.id || serverDocIds[d.id]) return true;
+        if (syncMeta.hashes['doc:' + d.id]) { delete syncMeta.hashes['doc:' + d.id]; touchedDocs = true; return false; }
+        imported++; return true;
+      });
+      // 5) 對話：列表只含標題與時間，有變動的才抓完整內容
+      var convs = (await storeFetch('GET', '/api/conversations?limit=1000')).conversations || [];
+      var touchedChats = false;
+      var serverChatIds = {};
+      for (var ci = 0; ci < convs.length; ci++) {
+        var sc = convs[ci];
+        serverChatIds[sc.id] = true;
+        var ckey = 'chat:' + sc.id;
+        var lc = chats[sc.id];
+        if (lc && syncMeta.hashes[ckey] && syncMeta.hashes[ckey] !== storeHash(chatForHash(lc))) continue;
+        if (lc && syncMeta.srv[ckey] === sc.updated_at) continue;
+        var full = (await storeFetch('GET', '/api/conversations/' + encodeURIComponent(sc.id))).conversation;
+        if (!full) continue;
+        var nc = chatFromServer(full);
+        chats[sc.id] = nc;
+        syncMeta.hashes[ckey] = storeHash(chatForHash(nc));
+        syncMeta.srv[ckey] = sc.updated_at;
+        touchedChats = true;
+      }
+      Object.keys(chats).forEach(function(id) {
+        var c = chats[id];
+        if (!c || c.ephemeral || c.readOnly || serverChatIds[id]) return;
+        if (syncMeta.hashes['chat:' + id]) { delete chats[id]; delete syncMeta.hashes['chat:' + id]; touchedChats = true; return; }
+        if (c.messages && c.messages.length) imported++;
+      });
+      if (touchedProjects) { saveProjects(); }
+      if (touchedDocs) { saveDocuments(); }
+      if (touchedChats) { saveChats(); if (chats[currentChatId]) loadChatView(); }
+      if (touchedProjects || touchedDocs || touchedChats) renderSidebar();
       saveSyncMeta();
-      setSyncStatus('已同步 ' + items.length + ' 項', false);
+      setSyncStatus(imported ? ('正在把 ' + imported + ' 項本機資料上傳到伺服器…') : '已與伺服器同步', false);
       return true;
     } catch(e) {
-      setSyncStatus('同步失敗：' + (e && e.message ? e.message : '網路錯誤'), true);
+      setSyncStatus('讀取伺服器資料失敗：' + (e && e.message ? e.message : '網路錯誤'), true);
       return false;
     } finally {
       syncMeta.busy = false;
       syncMeta.applying = false;
     }
   }
-  async function pushSync(force) {
-    if (!syncMeta.enabled || syncMeta.busy) return false;
-    var changes = collectSyncChanges(!!force);
-    if (!changes.length) { setSyncStatus('已同步', false); return true; }
+
+  async function pushSync() {
+    if (!syncMeta.enabled) return false;
+    if (syncMeta.busy) { syncMeta.pending = true; return false; }
     syncMeta.busy = true;
+    var sent = 0;
     try {
-      var res = await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ changes: changes }) });
-      var data = await res.json().catch(function() { return {}; });
-      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
-      changes.forEach(function(ch) {
-        if (!ch.deleted) {
-          syncMeta.sent[ch.key] = ch.updatedAt;
-          syncMeta.values[ch.key] = ch.value;
-        }
+      // 設定
+      var snap = settingsSnapshot();
+      var patch = {}, any = false;
+      Object.keys(snap).forEach(function(sk) {
+        if (syncMeta.hashes['setting:' + sk] !== storeHash(snap[sk])) { patch[sk] = snap[sk]; any = true; }
       });
-      var present = { chat: {}, doc: {}, project: {} };
-      Object.keys(chats).forEach(function(id) { present.chat[id] = true; });
-      documents.forEach(function(d) { if (d && d.id) present.doc[d.id] = true; });
-      projects.forEach(function(pr) { if (pr && pr.id) present.project[pr.id] = true; });
-      syncMeta.known = { chat: Object.keys(present.chat), doc: Object.keys(present.doc), project: Object.keys(present.project) };
+      if (any) {
+        await storeFetch('PUT', '/api/settings', { settings: patch });
+        Object.keys(patch).forEach(function(sk) { syncMeta.hashes['setting:' + sk] = storeHash(patch[sk]); sent++; });
+      }
+      // 個人資料
+      var praw = localProfileRaw();
+      if (praw && syncMeta.hashes.profile !== storeHash(praw)) {
+        var pobj = null; try { pobj = JSON.parse(praw); } catch(e) {}
+        if (pobj && typeof pobj === 'object') { await storeFetch('PUT', '/api/profile', { profile: pobj }); sent++; }
+        syncMeta.hashes.profile = storeHash(praw);
+      }
+      // 專案（先送，文件與對話會參照）
+      var present = {};
+      for (var i = 0; i < projects.length; i++) {
+        var p = projects[i];
+        if (!p || !p.id) continue;
+        var key = 'project:' + p.id; present[key] = true;
+        var h = storeHash(projectForHash(p));
+        if (syncMeta.hashes[key] === h) continue;
+        var r = await storeFetch('POST', '/api/projects', projectToServer(p));
+        syncMeta.hashes[key] = h; if (r.item) syncMeta.srv[key] = r.item.updated_at; sent++;
+      }
+      for (var j = 0; j < documents.length; j++) {
+        var d = documents[j];
+        if (!d || !d.id) continue;
+        var dkey = 'doc:' + d.id; present[dkey] = true;
+        var dh = storeHash(docForHash(d));
+        if (syncMeta.hashes[dkey] === dh) continue;
+        var dr = await storeFetch('POST', '/api/documents', docToServer(d));
+        syncMeta.hashes[dkey] = dh; if (dr.item) syncMeta.srv[dkey] = dr.item.updated_at; sent++;
+      }
+      var ids = Object.keys(chats);
+      for (var k = 0; k < ids.length; k++) {
+        var id = ids[k], c = chats[id];
+        if (!c || c.ephemeral || c.readOnly || !c.messages || !c.messages.length) continue;
+        if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) continue;
+        var ckey = 'chat:' + id; present[ckey] = true;
+        var ch = storeHash(chatForHash(c));
+        if (syncMeta.hashes[ckey] === ch) continue;
+        var cr = await storeFetch('PUT', '/api/conversations/' + encodeURIComponent(id), chatToServer(id, c));
+        syncMeta.hashes[ckey] = ch; if (cr.conversation) syncMeta.srv[ckey] = cr.conversation.updated_at; sent++;
+      }
+      // 本機刪除 → 伺服器軟刪除
+      var kinds = { project: '/api/projects/', doc: '/api/documents/', chat: '/api/conversations/' };
+      var hkeys = Object.keys(syncMeta.hashes);
+      for (var x = 0; x < hkeys.length; x++) {
+        var hk = hkeys[x], type = hk.split(':')[0], hid = hk.slice(type.length + 1);
+        if (!kinds[type] || present[hk]) continue;
+        if (type === 'chat' && chats[hid]) continue; // 還在但沒有訊息
+        await storeFetch('DELETE', kinds[type] + encodeURIComponent(hid));
+        delete syncMeta.hashes[hk]; delete syncMeta.srv[hk]; sent++;
+      }
       saveSyncMeta();
-      setSyncStatus('已同步 ' + changes.length + ' 項', false);
+      setSyncStatus(sent ? ('已儲存到伺服器（' + sent + ' 項）') : '已與伺服器同步', false);
       return true;
     } catch(e) {
-      setSyncStatus('同步失敗：' + (e && e.message ? e.message : '網路錯誤'), true);
+      saveSyncMeta();
+      setSyncStatus('儲存到伺服器失敗：' + (e && e.message ? e.message : '網路錯誤') + '（資料仍在本機，稍後重試）', true);
+      clearTimeout(syncMeta.timer);
+      syncMeta.timer = setTimeout(function() { pushSync(); }, 15000);
       return false;
     } finally {
       syncMeta.busy = false;
+      if (syncMeta.pending) { syncMeta.pending = false; scheduleSync(); }
     }
   }
   function scheduleSync() {
     if (!syncMeta.enabled || syncMeta.applying) return;
     clearTimeout(syncMeta.timer);
-    syncMeta.timer = setTimeout(function() { pushSync(false); }, 1800);
+    syncMeta.timer = setTimeout(function() { pushSync(); }, 1500);
+  }
+  // 舊版瀏覽器內的供應商（含 API Key）→ 伺服器加密保存，成功後從瀏覽器移除 Key。
+  async function importLocalProviders() {
+    if (syncMeta.providersImported) return 0;
+    var list = [];
+    try { list = JSON.parse(localStorage.getItem(PROVIDERS_KEY) || '[]'); } catch(e) {}
+    if (!Array.isArray(list)) list = [];
+    var existing = {};
+    SERVER_PROVIDERS.forEach(function(p) { existing[p.id] = true; });
+    var n = 0, failed = 0;
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i];
+      if (!p || !p.baseUrl) continue;
+      var pid = /^[A-Za-z0-9_-]{1,64}$/.test(String(p.id || '')) ? String(p.id) : undefined;
+      if (pid && existing[pid]) continue;
+      try {
+        await storeFetch('POST', '/api/providers', { id: pid, name: p.name || '供應商', base_url: p.baseUrl, api_key: p.apiKey || '', models: p.model ? [p.model] : [] });
+        n++;
+      } catch(e) { failed++; }
+    }
+    if (!failed) {
+      try { localStorage.removeItem(PROVIDERS_KEY); } catch(e) {}
+      syncMeta.providersImported = true;
+      saveSyncMeta();
+    }
+    return n;
   }
   async function syncBootstrap() {
-    if (!syncMeta.enabled) { setSyncStatus('此部署未啟用 D1 同步', false); return; }
+    if (!syncMeta.enabled) { setSyncStatus('此部署未設定伺服器儲存，資料只保存在這個瀏覽器', false); return; }
+    setSyncStatus('正在讀取伺服器資料…', false);
     await pullSync();
-    await pushSync(false);
+    try {
+      await loadServerProviders();
+      if (await importLocalProviders()) await loadServerProviders();
+    } catch(e) { setProviderStatus('讀取供應商失敗：' + (e && e.message ? e.message : ''), true); }
+    await pushSync();
   }
   function syncNow() {
-    if (!syncMeta.enabled) { setSyncStatus('此部署未啟用 D1 同步', true); return; }
+    if (!syncMeta.enabled) { setSyncStatus('此部署未設定伺服器儲存', true); return; }
     setSyncStatus('同步中…', false);
-    pullSync().then(function() { return pushSync(true); });
+    pullSync().then(function() { return loadServerProviders(); }).then(function() { return pushSync(); });
   }
 
   var TONES = {
@@ -3373,10 +3637,18 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       }
       var customPrompt = localStorage.getItem('ta_custom_prompt') || '';
       var provider = activeProvider();
-      if (!provider && serverDefaultProvider === false) throw new Error('請先在設定中新增供應商，或設定 GROQ_API_KEY');
+      var useServerProvider = serverMode() && !!selectedProviderId;
+      if (!provider && !useServerProvider && serverDefaultProvider === false) throw new Error('請先在設定中新增供應商，或設定 GROQ_API_KEY');
       var headers = { 'Content-Type': 'application/json' };
       var snippets = [];
-      if (localStorage.getItem('ta_use_docs') !== '0') {
+      if (localStorage.getItem('ta_use_docs') !== '0' && serverMode() && documents.length) {
+        // 伺服器知識庫檢索（中文二字組 + 全文），只帶最相關的段落
+        try {
+          var sr = await storeFetch('GET', '/api/documents/search?q=' + encodeURIComponent(String(promptText || '').slice(0, 300)) + (currentProjectId ? '&project_id=' + encodeURIComponent(currentProjectId) : ''));
+          snippets = (sr.results || []).map(function(r) { return { title: r.title, content: String(r.content || '').slice(0, 2500) }; });
+        } catch(eDocs) { snippets = []; }
+      }
+      if (localStorage.getItem('ta_use_docs') !== '0' && !snippets.length) {
         snippets = documents.filter(function(d) {
           return !currentProjectId || d.projectId === currentProjectId || !d.projectId;
         }).sort(function(x, y) { return (x.projectId === currentProjectId ? 1 : 0) - (y.projectId === currentProjectId ? 1 : 0); }).slice(-6).map(function(d) { return { title: d.title, content: String(d.content || '').slice(0, 2500) }; });
@@ -3387,7 +3659,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var resolvedTz = (tzVal && tzVal !== 'auto') ? tzVal : (function() {
         try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Taipei'; } catch(e) { return 'Asia/Taipei'; }
       })();
-      var resolvedModel = provider ? (provider.model || selectedModel) : (serverDefaultModel || selectedModel);
+      var resolvedModel = useServerProvider ? selectedModel : provider ? (provider.model || selectedModel) : (serverDefaultModel || selectedModel);
       var payload = {
           prompt: fullPrompt,
           model: resolvedModel,
@@ -3404,7 +3676,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
           adapt: adaptEnabled(),
           profile: adaptEnabled() ? loadLocalProfile() : undefined
         };
-      if (provider) payload.provider = { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model || selectedModel };
+      if (useServerProvider) payload.provider_id = selectedProviderId;
+      else if (provider) payload.provider = { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model || selectedModel };
       if (window.TAP) { var tapPreset = TAP.rolePreset(); if (tapPreset) payload.role_preset = tapPreset; }
       if (pendingImage) payload.image = { dataUrl: pendingImage };
       var response = await fetch('/api/chat', {
@@ -3523,6 +3796,10 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     if (abortCtl) abortCtl.abort();
   }
   function currentModelMeta() {
+    if (MODEL_GROUPS.length) {
+      var f = findModel(selectedProviderId, selectedModel);
+      if (f) return { id: f.model.id, name: f.model.name, desc: f.group.provider.name };
+    }
     for (var i = 0; i < MODELS.length; i++) if (MODELS[i].id === selectedModel) return MODELS[i];
     return { id: selectedModel, name: selectedModel || MODELS[0].name, desc: '' };
   }
@@ -3532,6 +3809,21 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     var meta = currentModelMeta();
     if (label) label.textContent = meta.name;
     if (!menu) return;
+    if (MODEL_GROUPS.length) {
+      // 依供應商分組：內建 Groq 與每個自訂供應商各自一組
+      var descById = {}; MODELS.forEach(function(m) { descById[m.id] = m.desc; });
+      menu.innerHTML = MODEL_GROUPS.map(function(g) {
+        var head = '<div class="model-group-label" role="presentation">' + escapeHtml(g.provider.name) + (g.provider.has_key || g.provider.builtin ? '' : ' · 無 Key') + '</div>';
+        if (!g.models.length) return head + '<div class="model-option-desc model-group-empty">尚未設定模型</div>';
+        return head + g.models.map(function(m) {
+          var active = g.provider.id === selectedProviderId && m.id === selectedModel;
+          var desc = g.provider.builtin && descById[m.id] ? t(descById[m.id]) : (m.name !== m.id ? m.id : '');
+          return '<button type="button" class="model-option' + (active ? ' active' : '') + '" data-model="' + escapeHtml(g.provider.id + '|' + m.id) + '" role="option">' +
+            '<div class="model-option-name">' + escapeHtml(m.name) + '</div>' + (desc ? '<div class="model-option-desc">' + escapeHtml(desc) + '</div>' : '') + '</button>';
+        }).join('');
+      }).join('');
+      return;
+    }
     menu.innerHTML = MODELS.map(function(m) {
       return '<button type="button" class="model-option' + (m.id === selectedModel ? ' active' : '') + '" data-model="' + m.id + '" role="option">' +
         '<div class="model-option-name">' + m.name + '</div>' +
@@ -3539,13 +3831,38 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     }).join('');
   }
   function setModel(id) {
+    id = String(id || '');
+    var bar = id.indexOf('|');
+    if (bar > 0) {
+      selectedProviderId = id.slice(0, bar);
+      id = id.slice(bar + 1);
+      try { localStorage.setItem(PROVIDER_ACTIVE_KEY, selectedProviderId); } catch(e) {}
+    }
     selectedModel = id;
     try { localStorage.setItem('ta_model', id); } catch(e) {}
+    scheduleSync();
     renderModelPicker();
     var picker = document.getElementById('model-picker');
     if (picker) picker.classList.remove('open');
     var btn = document.getElementById('model-picker-btn');
     if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+  function fillDefaultModelSelect() {
+    var modelSel = document.getElementById('set-default-model');
+    if (!modelSel) return;
+    if (MODEL_GROUPS.length) {
+      modelSel.innerHTML = MODEL_GROUPS.filter(function(g) { return g.models.length; }).map(function(g) {
+        return '<optgroup label="' + escapeHtml(g.provider.name) + '">' + g.models.map(function(m) {
+          var v = g.provider.id + '|' + m.id;
+          var sel = g.provider.id === selectedProviderId && m.id === selectedModel;
+          return '<option value="' + escapeHtml(v) + '"' + (sel ? ' selected' : '') + '>' + escapeHtml(m.name) + '</option>';
+        }).join('') + '</optgroup>';
+      }).join('');
+      return;
+    }
+    modelSel.innerHTML = MODELS.map(function(m) {
+      return '<option value="' + escapeHtml(m.id) + '"' + (m.id === selectedModel ? ' selected' : '') + '>' + escapeHtml(m.name) + '</option>';
+    }).join('');
   }
   function applyI18n() {
     document.querySelectorAll('[data-i18n]').forEach(function(el) {
@@ -4592,12 +4909,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     setChoice('ta_len_mode', localStorage.getItem('ta_len_mode') || 'normal');
     setChoice('ta_tone', localStorage.getItem('ta_tone') || 'auto');
     if (window.TA && TA.mountPicker) TA.mountPicker(document.getElementById('set-lang'));
-    var modelSel = document.getElementById('set-default-model');
-    if (modelSel) {
-      modelSel.innerHTML = MODELS.map(function(m) {
-        return '<option value="' + m.id + '"' + (m.id === selectedModel ? ' selected' : '') + '>' + m.name + '</option>';
-      }).join('');
-    }
+    fillDefaultModelSelect();
     var guest = document.getElementById('account-guest');
     var authed = document.getElementById('account-authed');
     if (currentUser && authToken) {
@@ -4906,7 +5218,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
         .then(function(d) {
           if (d && d.user) {
             currentUser = d.user;
-            syncMeta.enabled = !!(d.config && d.config.sync);
+            syncMeta.enabled = !!(d.config && d.config.storage);
             serverDefaultProvider = !!(d.config && d.config.defaultProvider);
             serverDefaultModel = (d.config && d.config.defaultModel) || '';
             if (!activeProvider() && serverDefaultModel) setModel(serverDefaultModel);

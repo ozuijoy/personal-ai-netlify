@@ -1,4 +1,5 @@
 import { OWNER } from './providers.js'
+import { existingProjectId } from './entities.js'
 
 const ID_RE = /^[A-Za-z0-9_-]{1,100}$/
 const MAX_MESSAGE = 200_000
@@ -102,6 +103,7 @@ function insertMessages(id, messages, startSeq) {
 export async function upsertConversation(db, input, ownerId = OWNER) {
   const id = input.id && ID_RE.test(String(input.id)) ? String(input.id) : crypto.randomUUID()
   const h = headerValues(input)
+  if ('project_id' in h) h.project_id = await existingProjectId(db, h.project_id, ownerId)
   const cols = Object.keys(h)
   const params = [id, ownerId, ...Object.values(h)]
   const ph = cols.map((c, i) => (c === 'data' ? `$${i + 3}::jsonb` : `$${i + 3}`))
@@ -121,6 +123,7 @@ export async function upsertConversation(db, input, ownerId = OWNER) {
 
 export async function updateConversation(db, id, input, ownerId = OWNER) {
   const h = headerValues(input)
+  if ('project_id' in h) h.project_id = await existingProjectId(db, h.project_id, ownerId)
   const cols = Object.keys(h)
   if (!cols.length) return getConversation(db, id, ownerId)
   const sets = cols.map((c, i) => `${c} = $${i + 3}${c === 'data' ? '::jsonb' : ''}`)
