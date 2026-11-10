@@ -1,0 +1,11 @@
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+  X-Content-Type-Options: nosniff
+
+/avatar.png
+  Cache-Control: public, max-age=31536000, immutable
+  X-Content-Type-Options: nosniff
+
+/favicon.ico
+  Cache-Control: public, max-age=31536000, immutable
+  X-Content-Type-Options: nosniff

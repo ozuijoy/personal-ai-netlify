@@ -1,0 +1,21 @@
+# Personal AI — Netlify 版（尚未部署）
+[build]
+  command = "npm run build"
+  publish = "public"
+
+[functions]
+  node_bundler = "esbuild"
+  # 預設區域為 us-east-2 (Ohio)；Neon 專案與 Neon Object Storage 也建在 AWS us-east-2 以降低延遲。
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# 環境變數（在 Netlify UI → Project configuration → Environment variables 設定，勿寫進此檔）：
+#   APP_PASSWORD        登入密碼（必要）
+#   AUTH_SECRET         HMAC 簽章用，≥32 字元（必要）
+#   ENCRYPTION_KEY      API Key 加密金鑰，base64 32 bytes：npm run gen:key（必要）
+#   DATABASE_URL        Neon 連線字串（pooled，sslmode=require）（必要）
+#   SESSION_DAYS        預設 30
+#   SESSION_VERSION     改值即登出所有裝置
+#   GROQ_API_KEY / GROQ_MODEL / TAVILY_API_KEY  選用
+#   KEY_VERSION / ENCRYPTION_KEY_PREVIOUS / KEY_VERSION_PREVIOUS  金鑰輪替時使用

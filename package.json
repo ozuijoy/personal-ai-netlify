@@ -1,0 +1,23 @@
+{
+  "name": "personal-ai-netlify",
+  "version": "2.0.0-alpha.1",
+  "private": true,
+  "description": "Personal AI on Netlify Functions + Neon Postgres (port of personal-ai)",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node scripts/extract-assets.mjs && node scripts/addThemes.cjs",
+    "dev": "npm run build && netlify dev",
+    "test": "node --test test/*.test.mjs",
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "db:import-d1": "node scripts/import-d1.mjs",
+    "gen:key": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.0"
+  }
+}

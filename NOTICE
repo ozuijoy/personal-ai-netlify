@@ -1,0 +1,14 @@
+Personal AI
+===========
+
+This project is a modified fork of **Trujillo AI Studio** by Alberto Trujillo
+Mingorance, originally distributed under the MIT License. The original work is
+available at https://github.com/ATM-Software-Labs/trujillo-ai-studio.
+
+Modifications for Personal AI include: removal of multi-user accounts, OAuth,
+email, Discord and Slack integrations, public sharing, market quotes and
+connectors; a single-password session model; an OpenAI-compatible provider
+proxy; D1-backed sync; a small tool interface; and a Pollinations image proxy.
+
+The original MIT copyright notice is retained in LICENSE. This NOTICE is
+provided for attribution and does not change the license of the original work.
