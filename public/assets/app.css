@@ -262,6 +262,12 @@
     .model-group-label { font-size: 0.68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); padding: 8px 10px 4px; }
     .model-group-label:not(:first-child) { border-top: 1px solid rgba(127,127,127,0.18); margin-top: 4px; }
     .model-group-empty { padding: 4px 10px 8px; }
+    .server-file-row { background: var(--elev); border: 1px solid var(--line); padding: 6px 8px; border-radius: 8px; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .server-file-main { flex: 1; min-width: 0; }
+    .server-file-name { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .server-file-meta { font-size: 0.68rem; color: var(--dim); }
+    .server-file-row .mini-x { opacity: 1; }
+    .doc-file-tag { font-size: 0.62rem; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-right: 6px; color: var(--dim); }
     .lang-select {
       appearance: none; -webkit-appearance: none; width: 100%;
       background: var(--elev) no-repeat right 10px center;

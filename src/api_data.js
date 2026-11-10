@@ -13,6 +13,10 @@
 //   GET    /api/{projects|documents|skills|memories|prompts}[?q=&project_id=]
 //   POST   /api/{kind}   GET|PATCH|DELETE /api/{kind}/:id
 //   GET    /api/documents/search?q=&project_id=
+//   GET    /api/files[?project_id=]      POST /api/files {filename, mime, size, project_id?} → presigned PUT
+//   POST   /api/files/:id/complete      {text?, title?, extract, pages?} 上傳完成、寫入知識庫
+//   GET    /api/files/:id/download[?inline=1]  → {url}（presigned GET，5 分鐘）
+//   DELETE /api/files/:id
 import { errorJson, json } from './config.js'
 import { requireAuth } from './auth.js'
 import { bodyErrorMessage, readJsonBody } from './body.js'
@@ -28,11 +32,45 @@ import {
 import {
   appendMessages, deleteConversation, getConversation, listConversations, updateConversation, upsertConversation,
 } from './repo/conversations.js'
+import { completeFile, createPendingFile, deleteFile, getFile, listFiles, maxUploadBytes } from './repo/files.js'
+import { createStorage } from './storage.js'
 
 const ID = '([A-Za-z0-9_-]{1,100})'
 const KINDS = Object.keys(ENTITIES).join('|')
 
+function needStorage(env) {
+  const storage = createStorage(env)
+  if (!storage) {
+    const err = new Error('物件儲存未設定（STORAGE_ENDPOINT / STORAGE_BUCKET / STORAGE_ACCESS_KEY_ID / STORAGE_SECRET_ACCESS_KEY）')
+    err.status = 503
+    throw err
+  }
+  return storage
+}
+
 const ROUTES = [
+  ['GET', /^\/api\/files$/, async ({ db, url }) => json({ ok: true, files: await listFiles(db, { projectId: url.searchParams.get('project_id') || undefined }) })],
+  ['POST', /^\/api\/files$/, async ({ db, env, body }) => {
+    const storage = needStorage(env)
+    const file = await createPendingFile(db, env, body)
+    const upload = await storage.uploadUrl(file.storage_key)
+    delete file.storage_key
+    return json({ ok: true, file, upload: { ...upload, headers: { 'Content-Type': file.mime } }, max_bytes: maxUploadBytes(env) }, 201)
+  }],
+  ['POST', new RegExp(`^/api/files/${ID}/complete$`), async ({ db, env, body, m }) => {
+    const out = await completeFile(db, env, needStorage(env), m[1], body)
+    return out ? json({ ok: true, ...out }) : errorJson('找不到資料', 404, 'not_found')
+  }],
+  ['GET', new RegExp(`^/api/files/${ID}$`), async ({ db, m }) => found(await getFile(db, m[1]), 'file')],
+  ['GET', new RegExp(`^/api/files/${ID}/download$`), async ({ db, env, m, url }) => {
+    const storage = needStorage(env)
+    const file = await getFile(db, m[1], undefined, { withKey: true })
+    if (!file || file.status === 'pending') return errorJson('找不到資料', 404, 'not_found')
+    const inline = url.searchParams.get('inline') === '1'
+    return json({ ok: true, url: await storage.downloadUrl(file.storage_key, { filename: file.filename, mime: file.mime, inline }) })
+  }],
+  ['DELETE', new RegExp(`^/api/files/${ID}$`), async ({ db, env, m }) => ok(await deleteFile(db, createStorage(env), m[1]))],
+
   ['GET', /^\/api\/settings$/, async ({ db }) => json({ ok: true, settings: await getSettings(db) })],
   ['PUT', /^\/api\/settings$/, async ({ db, body }) => json({ ok: true, settings: await putSettings(db, body.settings || body) })],
   ['GET', /^\/api\/profile$/, async ({ db }) => json({ ok: true, profile: await getProfile(db) })],
@@ -74,7 +112,7 @@ const ROUTES = [
       q: url.searchParams.get('q') || undefined,
       projectId: url.searchParams.has('project_id') ? url.searchParams.get('project_id') : undefined,
       since: url.searchParams.get('since') || undefined,
-      full: url.searchParams.get('full') === '1',
+      full: url.searchParams.get('full') === '1' ? true : url.searchParams.get('full') === 'compact' ? 'compact' : false,
       limit: url.searchParams.get('limit') || undefined,
     }),
   })],
@@ -133,6 +171,7 @@ export async function dataRoute(request, env, path, method) {
     return await route[2]({ request, env, db, body, url: new URL(request.url), m: path.match(route[1]) })
   } catch (err) {
     const msg = err && err.message ? String(err.message) : ''
+    if (err && err.status === 503) return errorJson(msg, 503, 'storage_not_configured')
     // 使用者輸入錯誤（中文訊息）回 400；資料庫 / 程式錯誤不洩漏細節。
     if (/[\u4e00-\u9fff]/.test(msg)) return errorJson(msg.slice(0, 300), 400, 'invalid_input')
     console.error('data route failed', path, err && err.stack ? err.stack : err)

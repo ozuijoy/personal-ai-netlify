@@ -13,6 +13,8 @@ import {
   sessionCookie,
 } from './auth.js'
 import { getDb } from './db.js'
+import { createStorage } from './storage.js'
+import { maxUploadBytes } from './repo/files.js'
 import { encryptionConfigured } from './crypto.js'
 import { loginAllowed, recordLoginFailure, recordLoginSuccess } from './repo/login.js'
 import { dataRoute } from './api_data.js'
@@ -195,6 +197,8 @@ async function meRoute(request, env) {
     config: {
       sync: false,
       storage: !!getDb(env),
+      files: !!(getDb(env) && createStorage(env)),
+      max_upload_mb: Math.round(maxUploadBytes(env) / 1048576),
       encryption: encryptionConfigured(env),
       search: !!env.TAVILY_API_KEY,
       image: true,

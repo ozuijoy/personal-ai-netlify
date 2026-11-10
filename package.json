@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "node scripts/extract-assets.mjs && node scripts/addThemes.cjs",
+    "build": "node scripts/copy-vendor.mjs && node scripts/extract-assets.mjs && node scripts/addThemes.cjs",
     "dev": "npm run build && netlify dev",
     "test": "node --test test/*.test.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
@@ -21,6 +21,8 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.0",
-    "jsdom": "^25.0.1"
+    "jsdom": "^25.0.1",
+    "mammoth": "^1.8.0",
+    "pdfjs-dist": "^4.10.38"
   }
 }

@@ -6,7 +6,16 @@ export function makeNonce() {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-export function shellCsp(nonce) {
+/** 物件儲存的 origin（瀏覽器直傳 presigned PUT 需要列在 connect-src）。 */
+export function storageOrigin(env = {}) {
+  try {
+    const u = new URL(env.STORAGE_ENDPOINT || env.AWS_ENDPOINT_URL_S3 || '')
+    return u.protocol === 'https:' ? u.origin : ''
+  } catch { return '' }
+}
+
+export function shellCsp(nonce, env = {}) {
+  const storage = storageOrigin(env)
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' https://cdn.jsdelivr.net`,
@@ -14,7 +23,7 @@ export function shellCsp(nonce) {
     "font-src 'self' data:",
     "img-src 'self' data: blob: https://image.pollinations.ai",
     "media-src 'self' data: blob:",
-    "connect-src 'self'",
+    `connect-src 'self'${storage ? ' ' + storage : ''}`,
     "frame-src 'self'",
     "worker-src 'self' blob:",
     "manifest-src 'self'",

@@ -1,3 +1,6 @@
+/assets/vendor/*.mjs
+  Content-Type: text/javascript; charset=utf-8
+
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
   X-Content-Type-Options: nosniff

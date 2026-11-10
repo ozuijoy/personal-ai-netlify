@@ -266,6 +266,12 @@
     .model-group-label { font-size: 0.68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); padding: 8px 10px 4px; }
     .model-group-label:not(:first-child) { border-top: 1px solid rgba(127,127,127,0.18); margin-top: 4px; }
     .model-group-empty { padding: 4px 10px 8px; }
+    .server-file-row { background: var(--elev); border: 1px solid var(--line); padding: 6px 8px; border-radius: 8px; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .server-file-main { flex: 1; min-width: 0; }
+    .server-file-name { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .server-file-meta { font-size: 0.68rem; color: var(--dim); }
+    .server-file-row .mini-x { opacity: 1; }
+    .doc-file-tag { font-size: 0.62rem; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-right: 6px; color: var(--dim); }
     .lang-select {
       appearance: none; -webkit-appearance: none; width: 100%;
       background: var(--elev) no-repeat right 10px center;
@@ -1664,7 +1670,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
         <textarea id="train-content" class="form-textarea" placeholder="Pega el texto…"></textarea>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <input type="file" id="import-rag-file" style="display:none" multiple accept=".txt,.md,.json">
+        <input type="file" id="import-rag-file" style="display:none" multiple accept=".pdf,.docx,.txt,.md,.markdown,.json,.csv,.tsv,.log,.html,.htm,.xml,.yaml,.yml,.js,.ts,.py,.css,.sql,.srt">
         <button type="button" id="import-docs-btn" class="topbar-action-btn">Importar archivos</button>
         <button id="save-knowledge-btn" class="topbar-action-btn primary" type="button">Guardar</button>
       </div>
@@ -1674,6 +1680,14 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
           <button id="clear-rag-btn" type="button" style="background:none;border:none;color:var(--red);font-size:0.72rem;cursor:pointer">Vaciar</button>
         </div>
         <div id="knowledge-list-box"></div>
+      </div>
+      <div id="server-files-wrap" style="display:none">
+        <div style="display:flex;justify-content:space-between;margin:12px 0 8px">
+          <span class="form-label" id="server-files-title">已上傳檔案</span>
+        </div>
+        <div id="server-files-box"></div>
+        <p class="settings-hint" id="files-status" style="min-height:18px"></p>
+        <p class="settings-hint">PDF、DOCX、純文字會在瀏覽器抽出文字後加入知識庫；掃描型 PDF 沒有文字層，只保存檔案。</p>
       </div>
     </div>
   </div>
@@ -2059,7 +2073,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
         return out;
       }) };
   }
-  function docForHash(d) { return { t: d.title || '', c: d.content || '', ty: d.type || 'note', p: d.projectId || null }; }
+  function docForHash(d) { return { t: d.title || '', c: d.content || '', ty: d.type || 'note', p: d.projectId || null, f: d.fileId || null }; }
   function docToServer(d) {
     var ty = d.type === 'file' || d.type === 'web' || d.type === 'knowledge' ? d.type : 'note';
     return { id: d.id, title: String(d.title || '').slice(0, 500), content: String(d.content || ''), doc_type: ty, project_id: d.projectId || null,
@@ -2067,9 +2081,11 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   }
   function docFromServer(sd) {
     var data = sd.data || {};
-    return { id: sd.id, title: sd.title || '', content: sd.content || '', type: data.legacy_type || sd.doc_type || 'note',
+    var out = { id: sd.id, title: sd.title || '', content: sd.content || '', type: data.legacy_type || sd.doc_type || 'note',
       projectId: sd.project_id || null, created: data.created || Date.parse(sd.created_at) || Date.now(), lang: data.lang || undefined,
       updatedAt: Date.parse(sd.updated_at) || Date.now() };
+    if (sd.file_id) { out.fileId = sd.file_id; out.fullLength = Number(sd.length) || 0; if (data.file) out.file = data.file; }
+    return out;
   }
   function projectForHash(p) { var c = {}; Object.keys(p).forEach(function(k) { if (k !== 'updatedAt') c[k] = p[k]; }); return c; }
   function projectToServer(p) {
@@ -2150,7 +2166,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
         imported++; return true; // 從未上傳 → 保留並推送
       });
       // 4) 文件（知識庫）
-      var docs = (await storeFetch('GET', '/api/documents?full=1&limit=2000')).items || [];
+      var docs = (await storeFetch('GET', '/api/documents?full=compact&limit=2000')).items || [];
       var touchedDocs = false;
       var serverDocIds = {};
       docs.forEach(function(sd) {
@@ -2250,6 +2266,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
         var d = documents[j];
         if (!d || !d.id) continue;
         var dkey = 'doc:' + d.id; present[dkey] = true;
+        if (d.fileId) continue; // 檔案抽出的文件由伺服器管理，本機只有前 3000 字，不回寫
         var dh = storeHash(docForHash(d));
         if (syncMeta.hashes[dkey] === dh) continue;
         var dr = await storeFetch('POST', '/api/documents', docToServer(d));
@@ -2330,12 +2347,214 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       if (await importLocalProviders()) await loadServerProviders();
     } catch(e) { setProviderStatus('讀取供應商失敗：' + (e && e.message ? e.message : ''), true); }
     await pushSync();
+    if (serverFilesEnabled) refreshServerFiles();
   }
   function syncNow() {
     if (!syncMeta.enabled) { setSyncStatus('此部署未設定伺服器儲存', true); return; }
     setSyncStatus('同步中…', false);
     pullSync().then(function() { return loadServerProviders(); }).then(function() { return pushSync(); });
   }
+
+  // ── 檔案上傳（第三階段）──────────────────────────────────────
+  // 1) POST /api/files 取得 presigned PUT → 2) 瀏覽器直傳物件儲存（不經 Netlify Function）
+  // 3) 瀏覽器抽文字（PDF: pdf.js、DOCX: mammoth、文字檔直接讀）→ 4) POST /api/files/:id/complete 寫入知識庫
+  var PDFJS_BASE = window.__TA_PDFJS_BASE || '/assets/vendor/pdfjs-4.10.38/'; // __TA_PDFJS_* 只給測試用
+  var MAMMOTH_SRC = '/assets/vendor/mammoth-1.8.0.min.js';
+  var MAX_EXTRACT_CHARS = 900000;
+  var serverFilesEnabled = false;
+  var serverMaxUploadMb = 25;
+  var serverFiles = [];
+  var pdfjsPromise = null, mammothPromise = null;
+  var TEXT_EXT = /\.(txt|md|markdown|json|csv|tsv|log|html?|css|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|kt|c|h|cpp|hpp|cs|php|sh|sql|xml|ya?ml|toml|ini|srt|vtt)$/i;
+  function fileKind(f) {
+    var n = String(f.name || '').toLowerCase();
+    if (/\.pdf$/.test(n) || f.type === 'application/pdf') return 'pdf';
+    if (/\.docx$/.test(n) || f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'docx';
+    if (TEXT_EXT.test(n) || /^text\//.test(f.type || '') || f.type === 'application/json') return 'text';
+    return 'binary';
+  }
+  function loadPdfjs() {
+    if (window.__TA_PDFJS) return Promise.resolve(window.__TA_PDFJS);
+    if (!pdfjsPromise) {
+      pdfjsPromise = import(PDFJS_BASE + 'pdf.min.mjs').then(function(lib) {
+        lib.GlobalWorkerOptions.workerSrc = PDFJS_BASE + 'pdf.worker.min.mjs';
+        return lib;
+      }).catch(function(e) { pdfjsPromise = null; throw e; });
+    }
+    return pdfjsPromise;
+  }
+  function loadMammoth() {
+    if (window.mammoth) return Promise.resolve(window.mammoth);
+    if (!mammothPromise) {
+      mammothPromise = new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = MAMMOTH_SRC;
+        s.onload = function() { window.mammoth ? resolve(window.mammoth) : reject(new Error('mammoth 載入失敗')); };
+        s.onerror = function() { mammothPromise = null; reject(new Error('mammoth 載入失敗')); };
+        document.head.appendChild(s);
+      });
+    }
+    return mammothPromise;
+  }
+  // 回傳 { text, extract: 'ok' | 'none' | 'failed', pages?, error? }
+  async function extractFileText(f, onStatus) {
+    var kind = fileKind(f);
+    try {
+      if (kind === 'text') {
+        var t0 = await f.text();
+        return { text: t0.slice(0, MAX_EXTRACT_CHARS), extract: t0.trim() ? 'ok' : 'none' };
+      }
+      if (kind === 'docx') {
+        var mammoth = await loadMammoth();
+        var r = await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() });
+        var t1 = String(r.value || '').replace(/\n{3,}/g, '\n\n');
+        return { text: t1.slice(0, MAX_EXTRACT_CHARS), extract: t1.trim() ? 'ok' : 'none' };
+      }
+      if (kind === 'pdf') {
+        var pdfjs = await loadPdfjs();
+        var pdf = await pdfjs.getDocument({
+          data: new Uint8Array(await f.arrayBuffer()),
+          cMapUrl: PDFJS_BASE + 'cmaps/', cMapPacked: true,
+          standardFontDataUrl: PDFJS_BASE + 'standard_fonts/',
+          isEvalSupported: false
+        }).promise;
+        var parts = [], total = 0;
+        for (var p = 1; p <= pdf.numPages; p++) {
+          if (onStatus) onStatus('抽取文字 ' + p + '/' + pdf.numPages + ' 頁');
+          var page = await pdf.getPage(p);
+          var tc = await page.getTextContent();
+          var line = '';
+          tc.items.forEach(function(it) { line += (it.str || '') + (it.hasEOL ? '\n' : ''); });
+          parts.push(line.trim());
+          total += line.length;
+          page.cleanup();
+          if (total > MAX_EXTRACT_CHARS) break;
+        }
+        var pages = pdf.numPages;
+        await pdf.destroy();
+        var t2 = parts.join('\n\n').slice(0, MAX_EXTRACT_CHARS);
+        // 幾乎沒有文字 → 多半是掃描檔（只有圖片），需要 OCR，第一版不處理
+        return { text: t2.replace(/\s/g, '').length >= 10 ? t2 : '', extract: t2.replace(/\s/g, '').length >= 10 ? 'ok' : 'none', pages: pages };
+      }
+      return { text: '', extract: 'none' };
+    } catch(e) {
+      return { text: '', extract: 'failed', error: (e && e.message ? e.message : '抽取失敗').slice(0, 200) };
+    }
+  }
+  function putWithProgress(url, file, contentType, onProgress) {
+    return new Promise(function(resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('PUT', url, true);
+      xhr.setRequestHeader('Content-Type', contentType);
+      xhr.upload.onprogress = function(ev) { if (ev.lengthComputable && onProgress) onProgress(ev.loaded / ev.total); };
+      xhr.onload = function() { xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('上傳失敗（HTTP ' + xhr.status + '）')); };
+      xhr.onerror = function() { reject(new Error('上傳失敗：無法連線到物件儲存（請確認 CORS 設定）')); };
+      xhr.send(file);
+    });
+  }
+  async function uploadFileToServer(f, opts) {
+    opts = opts || {};
+    var status = opts.onStatus || function() {};
+    if (f.size > serverMaxUploadMb * 1048576) throw new Error(f.name + ' 超過 ' + serverMaxUploadMb + ' MB 上限');
+    var mime = f.type || (fileKind(f) === 'pdf' ? 'application/pdf' : 'application/octet-stream');
+    status('準備上傳 ' + f.name);
+    var created = await storeFetch('POST', '/api/files', { filename: f.name, mime: mime, size: f.size, project_id: opts.projectId || null });
+    await putWithProgress(created.upload.url, f, created.upload.headers['Content-Type'], function(r) { status('上傳 ' + f.name + ' ' + Math.round(r * 100) + '%'); });
+    status('抽取文字 ' + f.name);
+    var ex = await extractFileText(f, status);
+    var done = await storeFetch('POST', '/api/files/' + encodeURIComponent(created.file.id) + '/complete', {
+      title: f.name.replace(/\.[^/.]+$/, ''), text: ex.text, extract: ex.extract, pages: ex.pages, error: ex.error
+    });
+    return { file: done.file, documentId: done.document_id, truncated: !!done.truncated, extract: ex.extract };
+  }
+  function setFilesStatus(text, bad) {
+    var el = document.getElementById('files-status');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = bad ? 'var(--red)' : 'var(--muted)';
+  }
+  function fileStatusLabel(f) {
+    if (f.status === 'extracted') return '已加入知識庫';
+    if (f.error === 'no_text_layer') return '無文字層（可能是掃描檔）';
+    if (f.status === 'failed') return '抽取失敗';
+    return '已上傳';
+  }
+  function formatBytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1048576).toFixed(1) + ' MB';
+  }
+  function renderServerFiles() {
+    var wrap = document.getElementById('server-files-wrap');
+    var box = document.getElementById('server-files-box');
+    if (wrap) wrap.style.display = serverFilesEnabled ? '' : 'none';
+    if (!box || !serverFilesEnabled) return;
+    var list = currentProjectId ? serverFiles.filter(function(f) { return f.project_id === currentProjectId; }) : serverFiles;
+    var title = document.getElementById('server-files-title');
+    if (title) title.textContent = (currentProjectId ? '此專案的檔案' : '已上傳檔案') + '（' + list.length + '）';
+    if (!list.length) { box.innerHTML = '<div class="empty-side">尚無檔案</div>'; return; }
+    box.innerHTML = list.map(function(f) {
+      return '<div class="server-file-row">' +
+        '<div class="server-file-main"><div class="server-file-name">' + escapeHtml(f.filename) + '</div>' +
+        '<div class="server-file-meta">' + formatBytes(f.size_bytes) + ' · ' + fileStatusLabel(f) + '</div></div>' +
+        '<button type="button" class="mini-x" data-file-dl="' + escapeHtml(f.id) + '" title="下載">↓</button>' +
+        '<button type="button" class="mini-x" data-file-del="' + escapeHtml(f.id) + '" title="刪除">✕</button></div>';
+    }).join('');
+  }
+  async function refreshServerFiles() {
+    if (!serverFilesEnabled) { renderServerFiles(); return; }
+    try {
+      serverFiles = (await storeFetch('GET', '/api/files')).files || [];
+    } catch(e) { setFilesStatus('讀取檔案清單失敗：' + (e.message || ''), true); }
+    renderServerFiles();
+  }
+  async function downloadServerFile(id) {
+    try {
+      var r = await storeFetch('GET', '/api/files/' + encodeURIComponent(id) + '/download');
+      if (r.url) window.open(r.url, '_blank', 'noopener');
+    } catch(e) { setFilesStatus('下載失敗：' + (e.message || ''), true); }
+  }
+  async function deleteServerFile(id, silent) {
+    var f = serverFiles.filter(function(x) { return x.id === id; })[0];
+    if (!silent && !confirm('刪除「' + (f ? f.filename : '檔案') + '」？檔案本體與知識庫內容都會刪除。')) return;
+    try {
+      await storeFetch('DELETE', '/api/files/' + encodeURIComponent(id));
+      // 本機快取同步移除對應的知識庫文件
+      var before = documents.length;
+      documents = documents.filter(function(d) {
+        if (d.fileId !== id) return true;
+        delete syncMeta.hashes['doc:' + d.id]; delete syncMeta.srv['doc:' + d.id];
+        return false;
+      });
+      if (documents.length !== before) { syncMeta.applying = true; saveDocuments(); syncMeta.applying = false; saveSyncMeta(); }
+      serverFiles = serverFiles.filter(function(x) { return x.id !== id; });
+      renderServerFiles(); renderKnowledgeList(); renderSidebar();
+      setFilesStatus('已刪除', false);
+    } catch(e) { setFilesStatus('刪除失敗：' + (e.message || ''), true); }
+  }
+  async function uploadFilesToServer(files, projectId, onStatus) {
+    var ok = 0, notes = [];
+    var report = onStatus || function(s, bad) { setFilesStatus(s, bad); };
+    for (var i = 0; i < files.length; i++) {
+      try {
+        var r = await uploadFileToServer(files[i], { projectId: projectId === undefined ? currentProjectId : projectId, onStatus: function(s) { report(s, false); } });
+        ok++;
+        if (r.extract === 'none') notes.push(files[i].name + '：沒有可抽取的文字');
+        else if (r.extract === 'failed') notes.push(files[i].name + '：抽取失敗，只保存檔案');
+        else if (r.truncated) notes.push(files[i].name + '：文字超過 90 萬字，只保存前段');
+      } catch(e) {
+        notes.push(files[i].name + '：' + (e && e.message ? e.message : '失敗'));
+      }
+    }
+    await pullSync();
+    await refreshServerFiles();
+    renderKnowledgeList(); renderSidebar();
+    var summary = '上傳完成 ' + ok + '/' + files.length + (notes.length ? '。' + notes.join('；') : '');
+    report(summary, ok !== files.length);
+    return summary;
+  }
+  window.TA_FILES = { extract: extractFileText, upload: uploadFileToServer, refresh: refreshServerFiles };
 
   var TONES = {
     auto: '',
@@ -4502,10 +4721,19 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     }
     paintFiles();
     var picker = U.el('input', { type: 'file', multiple: true, class: 'proj-file-input', id: 'proj-f-input', tabindex: '-1', 'aria-hidden': 'true',
-      accept: '.txt,.md,.markdown,.csv,.tsv,.json,.html,.htm,.css,.js,.mjs,.ts,.tsx,.jsx,.py,.rb,.go,.rs,.java,.c,.cpp,.h,.sh,.xml,.yaml,.yml,.toml,.ini,.sql,.log,text/*' });
+      accept: (serverFilesEnabled ? '.pdf,.docx,' : '') + '.txt,.md,.markdown,.csv,.tsv,.json,.html,.htm,.css,.js,.mjs,.ts,.tsx,.jsx,.py,.rb,.go,.rs,.java,.c,.cpp,.h,.sh,.xml,.yaml,.yml,.toml,.ini,.sql,.log,text/*' });
     picker.addEventListener('change', function() {
       var fs = Array.prototype.slice.call(picker.files || []);
       var msgs = [];
+      if (serverFilesEnabled) {
+        // 伺服器模式：先暫存 File，按「儲存」後直傳物件儲存並抽文字
+        fs.forEach(function(f) {
+          if (f.size > serverMaxUploadMb * 1048576) { msgs.push(f.name + ' 超過 ' + serverMaxUploadMb + ' MB'); return; }
+          added.push({ title: f.name.slice(0, 120), size: f.size, file: f });
+        });
+        picker.value = ''; err.textContent = msgs.join(' · '); paintFiles();
+        return;
+      }
       var jobs = fs.map(function(f) {
         if (f.size > 200 * 1024) { msgs.push(pt('tooBig').replace('{f}', f.name)); return Promise.resolve(); }
         if (!(PROJ_TEXT_EXT.test(f.name) || /^text\//.test(f.type || ''))) { msgs.push(pt('notText').replace('{f}', f.name)); return Promise.resolve(); }
@@ -4536,15 +4764,25 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       obj.role = role.value || '';
       obj.updated = Date.now();
       if (!editing) projects.unshift(obj);
-      documents = documents.filter(function(x) { return !removed[x.id]; });
+      var rawFiles = added.filter(function(a) { return a.file; }).map(function(a) { return a.file; });
+      added = added.filter(function(a) { return !a.file; });
+      documents.forEach(function(x) { if (removed[x.id] && x.fileId && serverFilesEnabled) deleteServerFile(x.fileId, true); });
+      documents = documents.filter(function(x) { return !removed[x.id] || (x.fileId && serverFilesEnabled); });
       added.forEach(function(f, i) {
         documents.push({ id: 'doc_' + Date.now() + '_' + i, title: f.title, content: f.content, type: 'file', lang: f.lang, created: Date.now(), projectId: obj.id });
       });
-      while (documents.length > 40) {
+      while (!serverMode() && documents.length > 40) {
         var idx = documents.findIndex(function(x) { return !x.projectId; });
         documents.splice(idx === -1 ? 0 : idx, 1);
       }
       saveProjects(); saveDocuments();
+      if (rawFiles.length) {
+        // 專案要先存在伺服器（檔案的 project_id 才有效），再上傳
+        projAnnounce('上傳 ' + rawFiles.length + ' 個檔案中…');
+        pushSync().then(function() {
+          return uploadFilesToServer(rawFiles, obj.id, function(msg) { projAnnounce(msg); });
+        });
+      }
       d.close('ok');
       if (!editing) { switchProject(obj.id); if (window.innerWidth <= 860) toggleSidebar(false); }
       else {
@@ -4595,6 +4833,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
         '<button class="mini-x" data-del-doc="' + d.id + '">✕</button>';
       item.onclick = function(e) {
         if (e.target.getAttribute('data-del-doc')) {
+          if (d.fileId && serverFilesEnabled) { deleteServerFile(d.fileId); return; }
           documents = documents.filter(function(x) { return x.id !== d.id; });
           saveDocuments();
           renderSidebar();
@@ -4612,13 +4851,13 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     documents.push({
       id: 'doc_' + Date.now(),
       title: doc.title || 'Documento',
-      content: String(doc.content || '').slice(0, 20000),
+      content: String(doc.content || '').slice(0, serverMode() ? 200000 : 20000),
       type: doc.type || 'note',
       lang: doc.lang || '',
       created: Date.now(),
       projectId: currentProjectId
     });
-    while (documents.length > 40) {
+    while (!serverMode() && documents.length > 40) {
       var evict = documents.findIndex(function(x) { return !x.projectId; });
       documents.splice(evict === -1 ? 0 : evict, 1);
     }
@@ -5103,10 +5342,11 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     var box = document.getElementById('knowledge-list-box');
     if (count) count.textContent = documents.length;
     if (!box) return;
+    renderServerFiles();
     if (!documents.length) { box.innerHTML = '<div class="empty-side">Sin documentos.</div>'; return; }
     box.innerHTML = documents.map(function(item) {
       return '<div style="background:var(--elev);border:1px solid var(--line);padding:6px 8px;border-radius:8px;display:flex;justify-content:space-between;gap:8px">' +
-        '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:0.75rem">' + escapeHtml(item.title) + '</div>' +
+        '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:0.75rem">' + (item.fileId ? '<span class="doc-file-tag">檔案</span>' : '') + escapeHtml(item.title) + '</div>' +
         '<button data-del-doc="' + item.id + '" class="del-rag-item-btn mini-x" style="opacity:1" type="button">✕</button></div>';
     }).join('');
   }
@@ -5123,6 +5363,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     renderSidebar();
   }
   function deleteKnowledgeById(id) {
+    var target = documents.filter(function(d) { return d.id === id; })[0];
+    if (target && target.fileId && serverFilesEnabled) { deleteServerFile(target.fileId); return; }
     documents = documents.filter(function(d) { return d.id !== id; });
     saveDocuments();
     renderKnowledgeList();
@@ -5138,6 +5380,12 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   async function handleImportKnowledge(e) {
     var files = e.target.files;
     if (!files || !files.length) return;
+    if (serverFilesEnabled) {
+      var picked = Array.prototype.slice.call(files);
+      e.target.value = '';
+      await uploadFilesToServer(picked);
+      return;
+    }
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       if (f.size > 200000) continue;
@@ -5219,6 +5467,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
           if (d && d.user) {
             currentUser = d.user;
             syncMeta.enabled = !!(d.config && d.config.storage);
+            serverFilesEnabled = !!(d.config && d.config.files);
+            serverMaxUploadMb = (d.config && d.config.max_upload_mb) || 25;
             serverDefaultProvider = !!(d.config && d.config.defaultProvider);
             serverDefaultModel = (d.config && d.config.defaultModel) || '';
             if (!activeProvider() && serverDefaultModel) setModel(serverDefaultModel);
@@ -5598,6 +5848,10 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       }
       var delRag = e.target.closest('.del-rag-item-btn');
       if (delRag) { var id = delRag.getAttribute('data-del-doc'); if (id) deleteKnowledgeById(id); return; }
+      var fileDl = e.target.closest('[data-file-dl]');
+      if (fileDl) { downloadServerFile(fileDl.getAttribute('data-file-dl')); return; }
+      var fileDel = e.target.closest('[data-file-del]');
+      if (fileDel) { deleteServerFile(fileDel.getAttribute('data-file-del')); return; }
       var delConn = e.target.closest('.del-conn-btn');
       if (delConn) { var cIdx = parseInt(delConn.getAttribute('data-del-conn-idx'), 10); if (!isNaN(cIdx)) deleteConnector(cIdx); return; }
     });

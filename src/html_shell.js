@@ -64,7 +64,7 @@ export function htmlResponse(request, env, opts = {}, status = 200) {
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
       'X-Robots-Tag': 'noindex, nofollow, noarchive',
-      'Content-Security-Policy': shellCsp(nonce),
+      'Content-Security-Policy': shellCsp(nonce, env),
       'X-Personal-AI-Version': APP_VERSION,
     },
   })

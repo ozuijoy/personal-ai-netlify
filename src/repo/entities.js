@@ -25,6 +25,8 @@ export const ENTITIES = {
     required: [],
     order: 'updated_at DESC',
     listColumns: 'id, project_id, file_id, title, doc_type, left(content, 300) AS preview, char_length(content) AS length, data, created_at, updated_at',
+    // 前端快取用：筆記給全文，檔案抽出的長文只給前 3000 字（全文留在伺服器做檢索）
+    compactColumns: 'id, project_id, file_id, title, doc_type, CASE WHEN file_id IS NULL THEN content ELSE left(content, 3000) END AS content, char_length(content) AS length, data, created_at, updated_at',
     afterWrite: 'chunks',
   },
   skills: {
@@ -84,7 +86,7 @@ export async function listEntities(db, kind, { projectId, q, limit = 200, since,
   }
   params.push(Math.min(2000, Math.max(1, Number(limit) || 200)))
   return db.query(
-    `SELECT ${(!full && def.listColumns) || '*'} FROM ${def.table} WHERE ${where.join(' AND ')} ORDER BY ${def.order} LIMIT $${params.length}`,
+    `SELECT ${full === 'compact' ? (def.compactColumns || '*') : (!full && def.listColumns) || '*'} FROM ${def.table} WHERE ${where.join(' AND ')} ORDER BY ${def.order} LIMIT $${params.length}`,
     params,
   )
 }

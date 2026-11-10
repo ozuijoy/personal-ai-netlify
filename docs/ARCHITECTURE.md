@@ -1,6 +1,6 @@
 # Personal AI — Netlify + Neon 移植架構
 
-> 狀態：第一、二階段（後端基礎、前端改為伺服器為主）已在本機完成，未部署、未推送。平台限制皆引自官方文件（2026-11-10 查閱），連結附於各節。
+> 狀態：第一至三階段（後端基礎、前端改為伺服器為主、檔案上傳）已在本機完成，未部署、未推送。平台限制皆引自官方文件（2026-11-10 查閱），連結附於各節。
 
 ## 0. 總覽
 
@@ -127,6 +127,18 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 4. **抽文字在瀏覽器做**：PDF 用 pdf.js、DOCX 用 mammoth.js（動態載入），抽出的文字 `POST /api/documents`（`file_id` 關聯）→ 伺服器切塊（約 1200 字、重疊 150）寫入 `doc_chunks`。理由：不佔 Function 的 60 秒與 compute，大檔也不受 6 MB 請求限制（文字通常遠小於原檔）。掃描型 PDF（無文字層）先標示「無可抽取文字」。
 5. 大小限制建議：單檔 25 MB、純文字抽取結果 ≤ 900,000 字元（與舊 D1 上限一致）。
 
+### 3.2.1 第三階段實作（已完成）
+
+- `src/storage.js`：以 WebCrypto 自寫 SigV4（不用 AWS SDK），path-style；presigned PUT/GET、HEAD、DELETE。用 AWS 官方文件的兩組範例簽章驗證正確。
+- 環境變數用 `STORAGE_*`（不用 `AWS_*`，避免與 Lambda 保留名稱衝突，屬推測，部署時確認）；本機也接受 Neon CLI 產生的 `AWS_*`。
+- API：`POST /api/files`（回 presigned PUT）→ 瀏覽器直傳 → `POST /api/files/:id/complete`（附抽出的文字）。complete 時伺服器 HEAD 檢查：物件不存在就拒絕；實際大小超過上限（presigned PUT 無法限制大小）就刪除物件。實作上文字併在 complete 一次送出，不另外呼叫 `/api/documents`。
+- 抽文字函式庫**自架**在 `/assets/vendor/`（pdf.js 4.10.38 含中文 CMap、mammoth 1.8.0），build 時從 npm 複製，按需載入；CSP 不必開放 CDN，只在 `connect-src` 加上物件儲存的 origin。
+- 掃描型 PDF：可抽文字少於 10 字視為無文字層，只保存檔案、標示「無文字層」，不做 OCR。
+- 前端：知識庫「匯入檔案」改走上傳（PDF、DOCX、文字檔）；專案編輯視窗的檔案也一樣，按儲存時先確認專案已在伺服器，再帶 `project_id` 上傳。檔案清單可下載（5 分鐘 presigned GET）與刪除（物件＋知識庫文件一起刪）。
+- 本機快取只存檔案文件的前 3000 字（`full=compact`），全文留在伺服器做檢索，避免 localStorage 爆量；這類文件前端不回寫。
+- Bucket 需設定 CORS：`node scripts/storage-cors.mjs https://站點網址`。
+- 測試：SigV4 範例、檔案 API 全流程（含超量、掃描檔、專案、503），以及 jsdom 前端實際上傳中文 PDF／DOCX／掃描 PDF 並檢索。
+
 ### 3.3 檢索
 
 - 第一版（已實作）：查詢拆成英數字詞＋中文二字組（bigram），以命中數＋標題加權＋`simple` 全文分數排序。PostgreSQL 內建全文檢索不會斷中文；實測 pg_trgm 對短中文查詢相似度只有 0.2，不適合當主要依據。個人知識庫規模（數千塊）順序掃描即可。
@@ -183,7 +195,7 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 |---|---|---|
 | 1 後端基礎 | Netlify 結構、Neon schema、登入節流、AES-GCM、供應商／模型（含空 Key、分組）、設定、個人資料、對話、專案、文件＋檢索、技能、Memory、Prompt 的 CRUD API、Edge 串流、D1 匯入腳本、測試 | **完成（本機）** |
 | 2 前端改為伺服器為主 | 伺服器儲存層取代 D1 同步、供應商設定頁（Key 加密存伺服器、可留空、可清除）、分組模型選單、聊天送 `provider_id`、知識庫改伺服器檢索、舊瀏覽器資料與 Key 自動上傳 | **完成（本機）**；首次部署待你同意 |
-| 3 檔案 | Neon Object Storage bucket＋CORS、presigned 上傳、pdf.js／mammoth 抽文字、專案檔案 | |
+| 3 檔案 | Neon Object Storage bucket＋CORS、presigned 上傳、pdf.js／mammoth 抽文字、專案檔案 | **完成（本機）**；bucket 與 CORS 部署時建立 |
 | 4 技能與 Memory | 設定頁、技能注入系統提示（always／keyword／手動）、對話後建議寫入 Memory（需使用者確認） | |
 | 5 強化 | pgvector 混合檢索、金鑰重加密腳本、匯出備份 | |
 
