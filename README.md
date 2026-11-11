@@ -96,9 +96,15 @@ test/                                  node:test；資料庫測試以 PGlite 實
 | `TAVILY_API_KEY` | | 網路搜尋工具 |
 | `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_AI_TOKEN` | | 內建語意檢索（兩者都有才啟用；取得方式見[設定 Workers AI Token](#設定-workers-ai-token)） |
 | `EMBEDDING_MODEL` | | 預設 `@cf/baai/bge-m3` |
-| `STORAGE_ENDPOINT`、`STORAGE_REGION`、`STORAGE_BUCKET`、`STORAGE_ACCESS_KEY_ID`、`STORAGE_SECRET_ACCESS_KEY` | | 物件儲存（檔案功能需要） |
+| `STORAGE_ENDPOINT` | 檔案功能 | 物件儲存端點，見[設定物件儲存](#設定物件儲存) |
+| `STORAGE_REGION` | | 區域，預設 `us-east-2` |
+| `STORAGE_BUCKET` | 檔案功能 | bucket 名稱 |
+| `STORAGE_ACCESS_KEY_ID` | 檔案功能 | 存取金鑰 ID（`nak_live_…`） |
+| `STORAGE_SECRET_ACCESS_KEY` | 檔案功能 | 存取祕密金鑰（`nsk_live_…`） |
 | `MAX_UPLOAD_MB` | | 預設 25 |
-| `KEY_VERSION`、`ENCRYPTION_KEY_PREVIOUS`、`KEY_VERSION_PREVIOUS` | | 金鑰輪替時使用 |
+| `KEY_VERSION` | | 目前 `ENCRYPTION_KEY` 的版本名，預設 `v1`；見[金鑰輪替](#api-key-加密金鑰輪替) |
+| `ENCRYPTION_KEY_PREVIOUS` | | 輪替期間保留的舊金鑰 |
+| `KEY_VERSION_PREVIOUS` | | 舊金鑰的版本名，預設 `v0` |
 
 ## 本機開發
 
@@ -114,7 +120,7 @@ npm run dev              # netlify dev
 ## 部署步驟
 
 1. **Neon**：建立專案（區域建議 AWS `us-east-2`，與 Netlify Functions 預設區域相同），取得 pooled `DATABASE_URL`，執行 `npm run db:migrate`。`0002_vectors.sql` 需要 pgvector 擴充。
-2. **物件儲存**（選用）：建立 Neon Object Storage bucket 與憑證，執行 `node scripts/storage-cors.mjs https://你的站.netlify.app` 設定 CORS。
+2. **物件儲存**（選用）：依[設定物件儲存](#設定物件儲存)建立 bucket 與憑證、填環境變數並設定 CORS。
 3. **Netlify**：連接本倉庫，build 指令 `npm run build`、publish 目錄 `public`（已寫在 `netlify.toml`），填入環境變數。
 4. **先用 Deploy Preview 實測**（不耗 credits），確認登入、聊天串流、檔案上傳、檢索都正常，再做正式部署。
 5. **語意檢索**（選用）：依下方「[設定 Workers AI Token](#設定-workers-ai-token)」取得帳號 ID 與 Token，填進 Netlify 環境變數後重新部署，再於設定頁或 `/api/embeddings/backfill` 補建既有文件的向量。
@@ -157,6 +163,137 @@ curl https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/v1/
 
 兩個變數缺一個或 Account ID 格式不對時，內建檢索不會啟用，知識庫只用關鍵字檢索，其他功能不受影響。
 
+## 設定物件儲存
+
+檔案上傳（PDF、DOCX、專案檔案）需要 S3 相容物件儲存，預設用 Neon Object Storage。五個變數都填在 Netlify 環境變數；`STORAGE_ENDPOINT`、`STORAGE_BUCKET`、`STORAGE_ACCESS_KEY_ID`、`STORAGE_SECRET_ACCESS_KEY` 缺任何一個，檔案功能就不啟用，其他功能照常。
+
+**取得方式**（[Neon 官方說明](https://neon.com/docs/storage/authentication)）：Neon Console 側欄 **Connect** → **Storage** 分頁 → 選 **Parameters only**，可看到端點、區域與金鑰；或到 **Settings → Credentials → Create credential**，勾選 `storage:read` 與 `storage:write` 另建一組。祕密金鑰只顯示一次，請立刻存好。也可用 CLI：
+
+```bash
+neon credentials create --scope storage:read --scope storage:write --name personal-ai-netlify
+```
+
+### `STORAGE_ENDPOINT`
+
+- 內容：Neon 分支的 S3 端點（Neon 介面裡叫 `AWS_ENDPOINT_URL_S3`）。
+- 格式：`https://` 開頭，結尾不要加 `/`，也不要帶 bucket 名稱。不是 `https://` 時檔案功能不啟用。
+- 範例：
+
+```
+https://br-cool-darkness-a1b2c3d4.storage.c-1.us-east-2.aws.neon.tech
+```
+
+### `STORAGE_REGION`
+
+- 內容：簽章用的區域（Neon 介面裡叫 `AWS_REGION`），要和端點裡的區域一致。
+- 格式：AWS 區域代碼，不含 `aws-` 前綴。選填，預設 `us-east-2`。
+- 範例：
+
+```
+us-east-2
+```
+
+### `STORAGE_BUCKET`
+
+- 內容：存放檔案的 bucket 名稱，需先在 Neon Console 建立。
+- 格式：只填名稱本身，不是網址。
+- 範例：
+
+```
+personal-ai-files
+```
+
+### `STORAGE_ACCESS_KEY_ID`
+
+- 內容：Neon credential 的 `token_id`（Neon 介面裡叫 `AWS_ACCESS_KEY_ID`）。
+- 格式：`nak_live_` 開頭。
+- 範例：
+
+```
+nak_live_xxxxxxxxxxxxxxxx
+```
+
+### `STORAGE_SECRET_ACCESS_KEY`
+
+- 內容：Neon credential 的 `s3_secret_access_key`（Neon 介面裡叫 `AWS_SECRET_ACCESS_KEY`）。
+- 格式：`nsk_live_` 開頭。建議在 Netlify 勾選為 secret。
+- 範例：
+
+```
+nsk_live_xxxxxxxxxxxxxxxx
+```
+
+注意：Neon credential 的 `api_token`（`nt_live_` 開頭）**不是**這裡要的值。
+
+### `MAX_UPLOAD_MB`
+
+- 單檔上限（MB），選填，預設 `25`。
+
+### 設定 CORS
+
+瀏覽器直接把檔案傳到 bucket，所以 bucket 要允許站點來源。在本機設好上面的變數後執行一次：
+
+```bash
+node scripts/storage-cors.mjs https://你的站.netlify.app
+```
+
+來源要寫成 `https://網域`（不含路徑）；本機測試可另加 `http://localhost:8888`。
+
+## API Key 加密金鑰輪替
+
+供應商的 API Key 在資料庫裡以 AES-256-GCM 加密，金鑰只在 Netlify 環境變數。每個密文開頭都帶著加密時用的**版本名**，格式是 `版本.iv.密文`，例如 `v1.Xk3…`。解密時依版本名挑金鑰，所以新舊金鑰可以同時存在，輪替時不會有 Key 突然讀不到。
+
+### 三個變數
+
+**`KEY_VERSION`**
+
+- 內容：目前 `ENCRYPTION_KEY` 的版本名。新加密的 Key 都會標上這個名稱。
+- 格式：自訂短字串，建議 `v1`、`v2`、`v3` 依序遞增；不能含 `.`。選填，未設定時為 `v1`。
+- 範例：
+
+```
+v2
+```
+
+**`ENCRYPTION_KEY_PREVIOUS`**
+
+- 內容：上一把金鑰，只在輪替期間用來解開舊密文。
+- 格式：與 `ENCRYPTION_KEY` 相同，base64 編碼的 32 bytes（約 44 字元）。
+- 範例：
+
+```
+（輪替前 ENCRYPTION_KEY 的值，44 字元左右的 base64）
+```
+
+**`KEY_VERSION_PREVIOUS`**
+
+- 內容：`ENCRYPTION_KEY_PREVIOUS` 的版本名，必須等於舊密文開頭的版本名，也就是輪替前的 `KEY_VERSION`。
+- 格式：同 `KEY_VERSION`。選填，未設定時為 `v0`；若第一次部署沒設 `KEY_VERSION`，舊版本是 `v1`，這裡就要填 `v1`。
+- 範例：
+
+```
+v1
+```
+
+### 輪替步驟
+
+1. 產生新金鑰：`npm run gen:key`。
+2. 在 Netlify 環境變數：
+   - 把**目前的** `ENCRYPTION_KEY` 值複製到 `ENCRYPTION_KEY_PREVIOUS`，目前的 `KEY_VERSION`（沒設就是 `v1`）填到 `KEY_VERSION_PREVIOUS`。
+   - `ENCRYPTION_KEY` 改成新金鑰，`KEY_VERSION` 改成新版本名（例如 `v2`）。
+3. 重新部署。此時舊 Key 用舊金鑰解、新存的 Key 用新金鑰加密，一切照常。
+4. 重新加密舊 Key（擇一）：
+   - 設定 → 資料控制 →「API Key 加密金鑰」→ **重新加密**（有舊版本 Key 時才出現）。
+   - 或呼叫 `POST /api/admin/rekey`。
+   - 或本機執行 `DATABASE_URL=… ENCRYPTION_KEY=<新> KEY_VERSION=v2 ENCRYPTION_KEY_PREVIOUS=<舊> KEY_VERSION_PREVIOUS=v1 npm run db:rekey`。
+5. 確認 `GET /api/admin/keys` 的 `outdated` 為 `0`（全部都是新版本），再從 Netlify 刪掉 `ENCRYPTION_KEY_PREVIOUS` 與 `KEY_VERSION_PREVIOUS`，重新部署。
+
+注意：
+
+- 步驟 5 之前不要刪舊金鑰，否則還沒重新加密的 Key 會無法解密，只能重新輸入。
+- 版本名不能重複使用；同一個版本名對應兩把不同金鑰會解密失敗。
+- 輪替只影響資料庫裡的供應商 API Key，不影響登入 session（要登出所有裝置請改 `SESSION_VERSION`）。
+
 ## 從舊版（Cloudflare D1）遷移
 
 ```bash
@@ -173,7 +310,7 @@ DATABASE_URL=... npm run db:import-d1 -- d1-export.json
 
 ## 維運
 
-- **金鑰輪替**：設定新 `ENCRYPTION_KEY` 與 `KEY_VERSION`，舊金鑰放 `ENCRYPTION_KEY_PREVIOUS`／`KEY_VERSION_PREVIOUS`，再執行 `npm run db:rekey` 或呼叫 `/api/admin/rekey`。
+- **金鑰輪替**：見[API Key 加密金鑰輪替](#api-key-加密金鑰輪替)。
 - **備份**：`/api/backup` 匯出 JSON，`/api/backup/restore` 還原。備份**不含** API Key 與檔案本體；還原後自訂供應商需重新輸入 Key，內建 Cloudflare 嵌入則可直接重建向量。
 
 ## 免費額度提醒
