@@ -94,7 +94,7 @@ test/                                  node:test；資料庫測試以 PGlite 實
 | `SESSION_VERSION` | | 改值即登出所有裝置 |
 | `GROQ_API_KEY`、`GROQ_MODEL` | | 內建 Groq 聊天 |
 | `TAVILY_API_KEY` | | 網路搜尋工具 |
-| `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_AI_TOKEN` | | 內建語意檢索（兩者都有才啟用；Token 需 Workers AI 權限） |
+| `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_AI_TOKEN` | | 內建語意檢索（兩者都有才啟用；取得方式見[設定 Workers AI Token](#設定-workers-ai-token)） |
 | `EMBEDDING_MODEL` | | 預設 `@cf/baai/bge-m3` |
 | `STORAGE_ENDPOINT`、`STORAGE_REGION`、`STORAGE_BUCKET`、`STORAGE_ACCESS_KEY_ID`、`STORAGE_SECRET_ACCESS_KEY` | | 物件儲存（檔案功能需要） |
 | `MAX_UPLOAD_MB` | | 預設 25 |
@@ -117,7 +117,45 @@ npm run dev              # netlify dev
 2. **物件儲存**（選用）：建立 Neon Object Storage bucket 與憑證，執行 `node scripts/storage-cors.mjs https://你的站.netlify.app` 設定 CORS。
 3. **Netlify**：連接本倉庫，build 指令 `npm run build`、publish 目錄 `public`（已寫在 `netlify.toml`），填入環境變數。
 4. **先用 Deploy Preview 實測**（不耗 credits），確認登入、聊天串流、檔案上傳、檢索都正常，再做正式部署。
-5. **語意檢索**（選用）：設定 `CLOUDFLARE_ACCOUNT_ID` 與 `CLOUDFLARE_AI_TOKEN` 後，於設定頁或 `/api/embeddings/backfill` 補建既有文件的向量。
+5. **語意檢索**（選用）：依下方「[設定 Workers AI Token](#設定-workers-ai-token)」取得帳號 ID 與 Token，填進 Netlify 環境變數後重新部署，再於設定頁或 `/api/embeddings/backfill` 補建既有文件的向量。
+
+## 設定 Workers AI Token
+
+內建語意檢索需要兩個值，**只放在 Netlify 環境變數**，不寫進程式、`netlify.toml` 或資料庫，也不會傳到瀏覽器。
+
+**1. 在 Cloudflare 取得**（[官方步驟](https://developers.cloudflare.com/workers-ai/get-started/rest-api/)）
+
+1. 登入 Cloudflare 儀表板，進入 **Workers AI** 頁面。
+2. 選 **Use REST API**。
+3. 選 **Create a Workers AI API Token** → 檢查預填內容 → **Create API Token** → **Copy API Token**。Token 只顯示這一次，請先存好。
+4. 在同一頁 **Get Account ID** 複製 **Account ID**（32 位十六進位）。
+
+若改在 My Profile → API Tokens 自訂 Token，權限需同時有 **Workers AI - Read** 與 **Workers AI - Edit**。
+
+**2. 填進 Netlify**
+
+Netlify 專案 → **Project configuration** → **Environment variables** → **Add a variable**：
+
+| Key | Value |
+|---|---|
+| `CLOUDFLARE_ACCOUNT_ID` | 上面的 Account ID |
+| `CLOUDFLARE_AI_TOKEN` | 上面的 API Token（建議勾選 secret） |
+| `EMBEDDING_MODEL` | 選填，預設 `@cf/baai/bge-m3` |
+
+存好後**重新部署**，環境變數才會生效。
+
+**3. 確認**
+
+- 登入後到設定 → 供應商頁的「語意檢索」，應顯示內建 Cloudflare bge-m3 已啟用；`/api/embeddings/status` 的 `builtin` 欄位也會有值。
+- 本機可先用 curl 驗證 Token：
+
+```bash
+curl https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/v1/embeddings \
+  -H "Authorization: Bearer $CLOUDFLARE_AI_TOKEN" -H "Content-Type: application/json" \
+  -d '{"model":"@cf/baai/bge-m3","input":["測試"]}'
+```
+
+兩個變數缺一個或 Account ID 格式不對時，內建檢索不會啟用，知識庫只用關鍵字檢索，其他功能不受影響。
 
 ## 從舊版（Cloudflare D1）遷移
 
