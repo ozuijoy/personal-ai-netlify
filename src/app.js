@@ -26,7 +26,7 @@ import { handleChat } from './chat.js'
 import { chatContextLoader } from './repo/context.js'
 import { handleImageRequest } from './images.js'
 import { TOOLS, runTool } from './tools/registry.js'
-import { DEFAULT_GROQ_MODEL, fetchWithTimeout, modelsUrl, providerFromBody, upstreamHeaders } from './providers.js'
+import { DEFAULT_GROQ_MODEL, builtinEmbeddingProvider, fetchWithTimeout, modelsUrl, providerFromBody, upstreamHeaders } from './providers.js'
 import { providerCredentials, resolveChatProvider } from './repo/providers.js'
 
 // Netlify 版：靜態檔由 CDN 直接提供（public/），這個 router 只處理頁面與 /api/*。
@@ -207,6 +207,7 @@ async function meRoute(request, env) {
       search: !!env.TAVILY_API_KEY,
       image: true,
       defaultProvider: !!env.GROQ_API_KEY,
+      embeddingBuiltin: !!builtinEmbeddingProvider(env),
       defaultModel: env.GROQ_MODEL || DEFAULT_GROQ_MODEL,
       version: APP_VERSION,
     },

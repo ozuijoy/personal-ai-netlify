@@ -157,7 +157,11 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 
 **語意檢索（`src/embeddings.js`、`db/migrations/0002_vectors.sql`）**
 - `doc_chunks` 加 `embedding vector`（不限維度）與 `embedding_model`。換嵌入模型不必改 schema，查詢只比對同模型、同維度的向量。代價是不能建 HNSW 索引；個人規模（數萬段以內）順序掃描即可，日後可改固定維度並加 HNSW。
-- 嵌入模型由使用者選擇（任一 OpenAI 相容 `/embeddings`，例如 text-embedding-3-small；Groq 沒有嵌入 API），存在 settings `embedding`，儲存時先實測一次並記下維度。未設定時維持純關鍵字。
+- 預設嵌入模型：內建 Cloudflare Workers AI `@cf/baai/bge-m3`（1024 維、多語、支援中文與跨語言檢索），經 OpenAI 相容端點 `https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/embeddings`。只在伺服器設定 `CLOUDFLARE_ACCOUNT_ID` 與 `CLOUDFLARE_AI_TOKEN` 時啟用，Token 只在環境變數。聊天預設仍是 Groq（Groq 沒有嵌入 API）。
+  - 免費額度（官方 developers.cloudflare.com/workers-ai/platform/pricing/）：每帳號每天 10,000 Neurons，UTC 0 點重置；bge-m3 為 1,075 Neurons／百萬 input tokens，約每天 930 萬 tokens。額度整個 Cloudflare 帳號共用，超過後當天呼叫失敗，檢索自動退回關鍵字。
+  - 使用者可改選任一 OpenAI 相容 `/embeddings` 供應商，或關閉。settings `embedding`：未設定 → 用內建（若有）；`{disabled:true}` → 關閉；`{provider_id, model, dims}` → 指定；`PUT /api/embeddings/config {reset:true}` 回到預設。
+  - 指定模型時先實測一次並記下維度；內建 bge-m3 維度已知（1024）。
+  - 還原備份後若用內建模型，不需重新輸入任何 Key 即可重建向量。
 - 補向量：`POST /api/embeddings/backfill` 每次最多處理約 40 秒（避開 Function 60 秒上限），前端迴圈呼叫；啟動時、上傳完成後、還原後會在背景自動補。文件內容更新會重新切塊，舊向量自然清除。
 - 檢索：關鍵字前 20 名與向量前 20 名（相似度 ≥ 0.2）以 RRF（k = 60）合併。嵌入 API 失敗時自動退回關鍵字，回應帶 `vector_error`。
 - 成本：每次知識庫檢索多一次嵌入呼叫（使用者自己的 Key）；在 Function 內執行，多數百毫秒 compute。

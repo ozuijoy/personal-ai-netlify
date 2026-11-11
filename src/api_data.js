@@ -17,7 +17,7 @@
 //   POST   /api/files/:id/complete      {text?, title?, extract, pages?} 上傳完成、寫入知識庫
 //   GET    /api/files/:id/download[?inline=1]  → {url}（presigned GET，5 分鐘）
 //   DELETE /api/files/:id
-//   GET    /api/embeddings/status       PUT /api/embeddings/config {provider_id, model}   POST /api/embeddings/backfill
+//   GET    /api/embeddings/status       PUT /api/embeddings/config {provider_id, model} | {reset:true}   POST /api/embeddings/backfill
 //   GET    /api/admin/keys              POST /api/admin/rekey（金鑰輪替後重新加密）
 //   GET    /api/backup[?table=&cursor=] 分頁匯出   POST /api/backup/restore {table, rows}
 //   POST   /api/memories/suggest       {messages, provider_id, model} → 建議（不寫入）
@@ -116,10 +116,10 @@ const ROUTES = [
     ...(await hybridSearch(db, env, url.searchParams.get('q'), { projectId: url.searchParams.get('project_id') || undefined })),
   })],
   // 語意檢索（第五階段）
-  ['GET', /^\/api\/embeddings\/status$/, async ({ db }) => json({ ok: true, status: await embeddingStatus(db) })],
+  ['GET', /^\/api\/embeddings\/status$/, async ({ db, env }) => json({ ok: true, status: await embeddingStatus(db, env) })],
   ['PUT', /^\/api\/embeddings\/config$/, async ({ db, env, body }) => {
     const config = await setEmbeddingConfig(db, env, body)
-    return json({ ok: true, config, status: await embeddingStatus(db) })
+    return json({ ok: true, config, status: await embeddingStatus(db, env) })
   }],
   ['POST', /^\/api\/embeddings\/backfill$/, async ({ db, env, request }) => json({ ok: true, ...(await backfillEmbeddings(db, env, { signal: request.signal })) })],
   // 金鑰輪替

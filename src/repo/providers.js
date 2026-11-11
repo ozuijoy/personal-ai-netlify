@@ -1,5 +1,5 @@
 import { decryptSecret, encryptSecret, keyHint, keyring } from '../crypto.js'
-import { BUILTIN_GROQ_ID, builtinProvider, normalizeBaseUrl, providerFromBody } from '../providers.js'
+import { BUILTIN_EMBED_ID, BUILTIN_GROQ_ID, builtinEmbeddingProvider, builtinProvider, normalizeBaseUrl, providerFromBody } from '../providers.js'
 
 export const OWNER = 'owner'
 
@@ -167,6 +167,11 @@ export async function providerCredentials(db, env, id, ownerId = OWNER) {
     const b = builtinProvider(env)
     if (!b) throw new Error('伺服器未設定 GROQ_API_KEY')
     return { baseUrl: b.base_url, apiKey: String(env.GROQ_API_KEY) }
+  }
+  if (id === BUILTIN_EMBED_ID) {
+    const b = builtinEmbeddingProvider(env)
+    if (!b) throw new Error('伺服器未設定 CLOUDFLARE_ACCOUNT_ID 與 CLOUDFLARE_AI_TOKEN')
+    return { baseUrl: b.base_url, apiKey: String(env.CLOUDFLARE_AI_TOKEN) }
   }
   if (!db) throw new Error('伺服器未設定 DATABASE_URL')
   const row = (await db.query(

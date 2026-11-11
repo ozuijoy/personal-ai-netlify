@@ -118,6 +118,29 @@ export function builtinProvider(env = {}) {
   }
 }
 
+// 內建嵌入模型：Cloudflare Workers AI（OpenAI 相容 /v1/embeddings）。
+// 只有伺服器設定 CLOUDFLARE_ACCOUNT_ID 與 CLOUDFLARE_AI_TOKEN 時才出現，Token 不進資料庫。
+// 免費額度：每帳號每天 10,000 Neurons；bge-m3 為 1,075 Neurons／百萬 input tokens
+// （developers.cloudflare.com/workers-ai/platform/pricing/）。
+export const BUILTIN_EMBED_ID = 'builtin-cloudflare-embed'
+export const DEFAULT_EMBED_MODEL = '@cf/baai/bge-m3'
+export const KNOWN_EMBED_DIMS = { '@cf/baai/bge-m3': 1024 }
+
+export function builtinEmbeddingProvider(env = {}) {
+  const account = String(env.CLOUDFLARE_ACCOUNT_ID || '').trim()
+  if (!account || !env.CLOUDFLARE_AI_TOKEN) return null
+  if (!/^[a-f0-9]{32}$/i.test(account)) return null
+  const model = String(env.EMBEDDING_MODEL || DEFAULT_EMBED_MODEL).trim().slice(0, 200)
+  return {
+    id: BUILTIN_EMBED_ID,
+    name: 'Cloudflare Workers AI（內建）',
+    builtin: true,
+    base_url: normalizeBaseUrl(`https://api.cloudflare.com/client/v4/accounts/${account}/ai/v1`),
+    model,
+    dims: KNOWN_EMBED_DIMS[model] || null,
+  }
+}
+
 export async function fetchWithTimeout(url, options = {}, timeoutMs = 120_000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort('timeout'), timeoutMs)

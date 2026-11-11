@@ -8,8 +8,8 @@
   }
   function embedStatusText(st) {
     if (!st.vector_available) return '資料庫尚未啟用 pgvector（需套用 0002_vectors）。';
-    if (!st.configured) return '未設定：知識庫只用關鍵字檢索。';
-    return '已索引 ' + st.embedded + ' / ' + st.total + ' 段' + (st.pending ? '，' + st.pending + ' 段待處理' : '') + '（' + st.model + '，' + st.dims + ' 維）';
+    if (!st.configured) return '未使用：知識庫只用關鍵字檢索。' + (st.builtin ? '可改選「' + st.builtin.name + '」免費語意檢索。' : '');
+    return '已索引 ' + st.embedded + ' / ' + st.total + ' 段' + (st.pending ? '，' + st.pending + ' 段待處理' : '') + '（' + st.model + (st.dims ? '，' + st.dims + ' 維' : '') + (st.default ? '，預設' : '') + '）';
   }
   async function loadEmbeddingPane() {
     var card = document.getElementById('embed-card');
@@ -20,9 +20,16 @@
     var st;
     try { st = (await storeFetch('GET', '/api/embeddings/status')).status; }
     catch(e) { p5Status('embed-status', '讀取失敗：' + (e.message || ''), true); return; }
-    sel.innerHTML = '<option value="">不使用（只用關鍵字）</option>' + SERVER_PROVIDERS.map(function(p) {
+    var opts = [];
+    if (st.builtin) opts.push({ id: st.builtin.id, name: st.builtin.name });
+    SERVER_PROVIDERS.forEach(function(p) { if (!p.builtin) opts.push({ id: p.id, name: p.name }); });
+    sel.innerHTML = '<option value="">不使用（只用關鍵字）</option>' + opts.map(function(p) {
       return '<option value="' + escapeHtml(p.id) + '"' + (st.provider_id === p.id ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>';
     }).join('');
+    // 選內建 Cloudflare 時自動帶入預設模型
+    sel.onchange = function() {
+      if (st.builtin && sel.value === st.builtin.id) document.getElementById('embed-model').value = st.builtin.model;
+    };
     document.getElementById('embed-model').value = st.model || '';
     document.getElementById('embed-run-btn').disabled = !st.configured || !st.pending;
     p5Status('embed-status', embedStatusText(st), !st.vector_available);

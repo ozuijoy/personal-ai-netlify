@@ -1,8 +1,10 @@
 // 第五階段：語意檢索（pgvector）與混合檢索。
-// - 嵌入模型由使用者在設定選擇（任一 OpenAI 相容 /embeddings 供應商；Groq 沒有嵌入 API）。設定存 settings.embedding。
+// - 嵌入模型：伺服器設定 Cloudflare Workers AI 時預設用內建 bge-m3（Groq 沒有嵌入 API，聊天仍預設 Groq）；
+//   使用者也可在設定改選任一 OpenAI 相容 /embeddings 供應商，或關閉。設定存 settings.embedding：
+//   未設定 → 有內建就用內建；{disabled:true} → 關閉；{provider_id, model, dims} → 指定。
 // - 向量在背景分批補齊（/api/embeddings/backfill，每次 ≤ 40 秒，避開 Function 60 秒上限），前端迴圈呼叫。
 // - 檢索：關鍵字結果與向量結果用 RRF（Reciprocal Rank Fusion）合併；向量不可用時自動退回關鍵字。
-import { fetchWithTimeout, normalizeBaseUrl, upstreamHeaders } from './providers.js'
+import { BUILTIN_EMBED_ID, builtinEmbeddingProvider, fetchWithTimeout, normalizeBaseUrl, upstreamHeaders } from './providers.js'
 import { providerCredentials, OWNER } from './repo/providers.js'
 import { getSettings, putSettings, searchDocuments } from './repo/entities.js'
 
@@ -21,11 +23,17 @@ export function toVectorLiteral(vec) {
   return '[' + vec.join(',') + ']'
 }
 
-export async function getEmbeddingConfig(db, ownerId = OWNER) {
+export async function getEmbeddingConfig(db, env = {}, ownerId = OWNER) {
   const s = await getSettings(db, ownerId)
   const c = s && s.embedding
-  if (!c || typeof c !== 'object' || !c.provider_id || !c.model) return null
-  return { provider_id: String(c.provider_id), model: String(c.model), dims: Number(c.dims) || null }
+  const builtin = builtinEmbeddingProvider(env)
+  if (c && typeof c === 'object' && c.disabled) return null
+  if (c && typeof c === 'object' && c.provider_id && c.model) {
+    if (c.provider_id === BUILTIN_EMBED_ID && !builtin) return null
+    return { provider_id: String(c.provider_id), model: String(c.model), dims: Number(c.dims) || null }
+  }
+  if (!builtin) return null
+  return { provider_id: builtin.id, model: builtin.model, dims: builtin.dims, default: true }
 }
 
 export async function vectorAvailable(db) {
@@ -59,8 +67,13 @@ export async function embedTexts(db, env, config, texts, ownerId = OWNER, signal
 export async function setEmbeddingConfig(db, env, input, ownerId = OWNER) {
   const providerId = input && input.provider_id ? String(input.provider_id).slice(0, 100) : ''
   const model = input && input.model ? String(input.model).trim().slice(0, 200) : ''
-  if (!providerId || !model) {
+  if (input && input.reset) {
+    // 回到預設（有內建就用內建）
     await putSettings(db, { embedding: null }, ownerId)
+    return getEmbeddingConfig(db, env, ownerId)
+  }
+  if (!providerId || !model) {
+    await putSettings(db, { embedding: { disabled: true } }, ownerId)
     return null
   }
   if (!(await vectorAvailable(db))) throw new Error('資料庫尚未套用 0002_vectors（pgvector）')
@@ -72,10 +85,15 @@ export async function setEmbeddingConfig(db, env, input, ownerId = OWNER) {
   return config
 }
 
-export async function embeddingStatus(db, ownerId = OWNER) {
+export async function embeddingStatus(db, env = {}, ownerId = OWNER) {
   const available = await vectorAvailable(db)
-  const config = await getEmbeddingConfig(db, ownerId)
-  const out = { vector_available: available, configured: !!config, ...(config || {}), total: 0, embedded: 0, pending: 0 }
+  const config = await getEmbeddingConfig(db, env, ownerId)
+  const builtin = builtinEmbeddingProvider(env)
+  const out = {
+    vector_available: available, configured: !!config, ...(config || {}),
+    builtin: builtin ? { id: builtin.id, name: builtin.name, model: builtin.model } : null,
+    total: 0, embedded: 0, pending: 0,
+  }
   if (!available) return out
   const row = (await db.query(
     `SELECT count(*)::int AS total,
@@ -90,7 +108,7 @@ export async function embeddingStatus(db, ownerId = OWNER) {
 
 /** 補齊尚未以目前模型嵌入的段落。回傳 {done, remaining}。 */
 export async function backfillEmbeddings(db, env, { maxChunks = 256, budgetMs = BACKFILL_BUDGET_MS, signal } = {}, ownerId = OWNER) {
-  const config = await getEmbeddingConfig(db, ownerId)
+  const config = await getEmbeddingConfig(db, env, ownerId)
   if (!config) throw new Error('尚未設定嵌入模型')
   const started = Date.now()
   let done = 0
@@ -107,7 +125,7 @@ export async function backfillEmbeddings(db, env, { maxChunks = 256, budgetMs = 
     ]))
     done += rows.length
   }
-  const status = await embeddingStatus(db, ownerId)
+  const status = await embeddingStatus(db, env, ownerId)
   return { done, remaining: status.pending, total: status.total, model: config.model }
 }
 
@@ -143,7 +161,7 @@ export async function hybridSearch(db, env, query, { projectId, limit = 6, minSi
   const n = Math.min(20, Math.max(1, Number(limit) || 6))
   const keyword = await searchDocuments(db, query, { projectId, limit: 20 }, ownerId)
   let config = null
-  try { config = await getEmbeddingConfig(db, ownerId) } catch {}
+  try { config = await getEmbeddingConfig(db, env, ownerId) } catch {}
   if (!config || !String(query || '').trim()) return { results: keyword.slice(0, n), mode: 'keyword' }
   try {
     const [vec] = await embedTexts(db, env, config, [String(query).slice(0, 2000)], ownerId)
