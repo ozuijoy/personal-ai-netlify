@@ -1,11 +1,12 @@
 // 第五階段：語意檢索（pgvector）與混合檢索。
-// - 嵌入模型：伺服器設定 Cloudflare Workers AI 時預設用內建 bge-m3（Groq 沒有嵌入 API，聊天仍預設 Groq）；
-//   使用者也可在設定改選任一 OpenAI 相容 /embeddings 供應商，或關閉。設定存 settings.embedding：
-//   未設定 → 有內建就用內建；{disabled:true} → 關閉；{provider_id, model, dims} → 指定。
+// - 嵌入模型：沒有內建，也沒有自動預設。設定存 settings.embedding：
+//   未設定 → 關閉（只用關鍵字檢索）；{provider_id, model, dims} → 開啟；PUT {reset:true} 或空 provider_id → 清除（關閉）。
+//   provider_id 可以是環境變數供應商 env-N 或設定面板（資料庫）的供應商；嵌入模型選項來自各供應商的嵌入模型清單
+//   （PROVIDER_N_EMBED_MODELS 或面板的「嵌入模型」欄位），也可自由輸入。
 // - 向量在背景分批補齊（/api/embeddings/backfill，每次 ≤ 40 秒，避開 Function 60 秒上限），前端迴圈呼叫。
 // - 檢索：關鍵字結果與向量結果用 RRF（Reciprocal Rank Fusion）合併；向量不可用時自動退回關鍵字。
-import { BUILTIN_EMBED_ID, builtinEmbeddingProvider, fetchWithTimeout, normalizeBaseUrl, upstreamHeaders } from './providers.js'
-import { providerCredentials, OWNER } from './repo/providers.js'
+import { fetchWithTimeout, normalizeBaseUrl, upstreamHeaders } from './providers.js'
+import { embeddingModelOptions, providerCredentials, OWNER } from './repo/providers.js'
 import { getSettings, putSettings, searchDocuments } from './repo/entities.js'
 
 export const EMBED_BATCH = 32
@@ -26,14 +27,10 @@ export function toVectorLiteral(vec) {
 export async function getEmbeddingConfig(db, env = {}, ownerId = OWNER) {
   const s = await getSettings(db, ownerId)
   const c = s && s.embedding
-  const builtin = builtinEmbeddingProvider(env)
-  if (c && typeof c === 'object' && c.disabled) return null
-  if (c && typeof c === 'object' && c.provider_id && c.model) {
-    if (c.provider_id === BUILTIN_EMBED_ID && !builtin) return null
+  if (c && typeof c === 'object' && !c.disabled && c.provider_id && c.model) {
     return { provider_id: String(c.provider_id), model: String(c.model), dims: Number(c.dims) || null }
   }
-  if (!builtin) return null
-  return { provider_id: builtin.id, model: builtin.model, dims: builtin.dims, default: true }
+  return null
 }
 
 export async function vectorAvailable(db) {
@@ -63,19 +60,15 @@ export async function embedTexts(db, env, config, texts, ownerId = OWNER, signal
   return list.map((d) => d.embedding)
 }
 
-/** 設定嵌入模型：先實際呼叫一次確認可用、記下維度。provider_id 為空則關閉語意檢索。 */
+/** 設定嵌入模型：先實際呼叫一次確認可用、記下維度。{reset:true} 或 provider_id 為空 → 清除設定（關閉）。 */
 export async function setEmbeddingConfig(db, env, input, ownerId = OWNER) {
   const providerId = input && input.provider_id ? String(input.provider_id).slice(0, 100) : ''
   const model = input && input.model ? String(input.model).trim().slice(0, 200) : ''
-  if (input && input.reset) {
-    // 回到預設（有內建就用內建）
+  if ((input && input.reset) || !providerId) {
     await putSettings(db, { embedding: null }, ownerId)
-    return getEmbeddingConfig(db, env, ownerId)
-  }
-  if (!providerId || !model) {
-    await putSettings(db, { embedding: { disabled: true } }, ownerId)
     return null
   }
+  if (!model) throw new Error('請輸入嵌入模型名稱')
   if (!(await vectorAvailable(db))) throw new Error('資料庫尚未套用 0002_vectors（pgvector）')
   const config = { provider_id: providerId, model }
   const [vec] = await embedTexts(db, env, config, ['測試 test'], ownerId)
@@ -88,10 +81,9 @@ export async function setEmbeddingConfig(db, env, input, ownerId = OWNER) {
 export async function embeddingStatus(db, env = {}, ownerId = OWNER) {
   const available = await vectorAvailable(db)
   const config = await getEmbeddingConfig(db, env, ownerId)
-  const builtin = builtinEmbeddingProvider(env)
   const out = {
     vector_available: available, configured: !!config, ...(config || {}),
-    builtin: builtin ? { id: builtin.id, name: builtin.name, model: builtin.model } : null,
+    options: await embeddingModelOptions(db, env, ownerId),
     total: 0, embedded: 0, pending: 0,
   }
   if (!available) return out

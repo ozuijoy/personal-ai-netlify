@@ -6,7 +6,11 @@ import {
   chatCompletionsUrl,
   modelsUrl,
   normalizeBaseUrl,
+  parseModelIds,
   providerFromBody,
+  publicEnvProvider,
+  scanEnvProviders,
+  envProvider,
 } from '../src/providers.js'
 import { calculate } from '../src/tools/calc.js'
 import { searchDocuments } from '../src/tools/docs.js'
@@ -78,16 +82,55 @@ test('providerFromBody requires a base URL but allows an empty key (self-hosted 
   assert.throws(() => providerFromBody({ provider: { baseUrl: 'https://api.example.com/v1', apiKey: 'a\nb' } }), /API Key/)
 })
 
-test('providerFromBody falls back to server Groq only when no provider is given', () => {
-  const p = providerFromBody({}, { GROQ_API_KEY: 'gsk_12345678', GROQ_MODEL: 'llama-test' })
-  assert.equal(p.baseUrl, 'https://api.groq.com/openai/v1')
-  assert.equal(p.apiKey, 'gsk_12345678')
-  assert.equal(p.model, 'llama-test')
-
-  // 明確指定供應商時（即使沒 Key）不會偷偷改用伺服器 Groq
-  const explicit = providerFromBody({ provider: { baseUrl: 'https://api.example.com/v1', apiKey: '' } }, { GROQ_API_KEY: 'gsk_12345678' })
+test('providerFromBody never falls back to a built-in provider', () => {
+  for (const env of [{}, { GROQ_API_KEY: 'gsk_12345678', GROQ_MODEL: 'llama-test' }, { PROVIDER_1_NAME: 'X', PROVIDER_1_BASE_URL: 'https://x.example.com/v1' }]) {
+    assert.throws(() => providerFromBody({}, env), /請先在設定中新增供應商並選擇模型/)
+  }
+  const explicit = providerFromBody({ provider: { baseUrl: 'https://api.example.com/v1', apiKey: '' } })
   assert.equal(explicit.baseUrl, 'https://api.example.com/v1')
   assert.equal(explicit.apiKey, '')
+})
+
+test('env providers: scans all of 1..20 across gaps, requires NAME + BASE_URL, empty key allowed', () => {
+  const env = {
+    PROVIDER_1_NAME: 'Groq', PROVIDER_1_BASE_URL: 'https://api.groq.com/openai/v1/', PROVIDER_1_API_KEY: 'gsk_env_1',
+    PROVIDER_1_MODELS: 'openai/gpt-oss-120b, openai/gpt-oss-20b,,openai/gpt-oss-120b',
+    // 2–6 空號
+    PROVIDER_7_NAME: '自建', PROVIDER_7_BASE_URL: 'https://llm.example.com/v1', PROVIDER_7_API_KEY: '', PROVIDER_7_MODELS: 'qwen-local',
+    PROVIDER_9_NAME: '缺網址', PROVIDER_9_API_KEY: 'sk-orphan',
+    PROVIDER_10_BASE_URL: 'https://noname.example.com/v1',
+    PROVIDER_12_NAME: '不安全', PROVIDER_12_BASE_URL: 'http://insecure.example.com/v1',
+    PROVIDER_13_NAME: '內網', PROVIDER_13_BASE_URL: 'https://192.168.1.5/v1',
+    PROVIDER_14_NAME: '壞 Key', PROVIDER_14_BASE_URL: 'https://k.example.com/v1', PROVIDER_14_API_KEY: 'a\nb',
+    PROVIDER_20_NAME: 'Cloudflare', PROVIDER_20_BASE_URL: 'https://api.cloudflare.com/client/v4/accounts/abc/ai/v1',
+    PROVIDER_20_API_KEY: 'cf-token', PROVIDER_20_EMBED_MODELS: '@cf/baai/bge-m3',
+    PROVIDER_21_NAME: '超出範圍', PROVIDER_21_BASE_URL: 'https://out.example.com/v1',
+    PROVIDER_0_NAME: '零', PROVIDER_0_BASE_URL: 'https://zero.example.com/v1',
+  }
+  const { providers, errors } = scanEnvProviders(env)
+  assert.deepEqual(providers.map((p) => p.id), ['env-1', 'env-7', 'env-20'])
+  assert.equal(providers[0].base_url, 'https://api.groq.com/openai/v1')
+  assert.deepEqual(providers[0].models, ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'])
+  assert.deepEqual(providers[0].embed_models, [])
+  assert.equal(providers[1].api_key, '')
+  assert.deepEqual(providers[2].models, [])
+  assert.deepEqual(providers[2].embed_models, ['@cf/baai/bge-m3'])
+  assert.deepEqual(errors.map((e) => e.index), [9, 10, 12, 13, 14])
+  assert.match(errors.find((e) => e.index === 12).error, /HTTPS/)
+  assert.match(errors.find((e) => e.index === 13).error, /主機/)
+  assert.equal(JSON.stringify(errors).includes('sk-orphan'), false)
+  assert.equal(envProvider(env, 'env-7').name, '自建')
+  assert.equal(envProvider(env, 'env-9'), null)
+  assert.equal(envProvider(env, 'env-21'), null)
+
+  const pub = publicEnvProvider(providers[0])
+  assert.equal(pub.readonly, true)
+  assert.equal(pub.source, 'env')
+  assert.equal(pub.note, '由環境變數管理')
+  assert.equal(pub.has_key, true)
+  assert.equal(JSON.stringify(pub).includes('gsk_env_1'), false)
+  assert.equal(publicEnvProvider(providers[1]).has_key, false)
+  assert.deepEqual(parseModelIds(' a ,b,a,, ' + 'x'.repeat(201)), ['a', 'b'])
 })
 
 test('calculator handles precedence, parentheses, unary and errors', () => {

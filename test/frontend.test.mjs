@@ -18,6 +18,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 async function makeDb() {
   const pg = new PGlite({ extensions: { pg_trgm } })
   await pg.exec(fs.readFileSync(new URL('../db/migrations/0001_init.sql', import.meta.url), 'utf8'))
+  await pg.exec(fs.readFileSync(new URL('../db/migrations/0003_model_kinds.sql', import.meta.url), 'utf8'))
   return {
     query: async (text, params = []) => (await pg.query(text, params)).rows,
     tx: (statements) => pg.transaction(async (t) => {
@@ -42,7 +43,10 @@ test('frontend: server-first store, provider import, grouped models, provider_id
   const db = await makeDb()
   const env = {
     APP_PASSWORD: 'pw', AUTH_SECRET: 'test-secret-that-is-long-enough-123456',
-    ENCRYPTION_KEY: Buffer.alloc(32, 3).toString('base64'), GROQ_API_KEY: 'gsk_server_side', __db: db,
+    ENCRYPTION_KEY: Buffer.alloc(32, 3).toString('base64'), __db: db,
+    PROVIDER_1_NAME: 'Groq 環境', PROVIDER_1_BASE_URL: 'https://api.groq.com/openai/v1', PROVIDER_1_API_KEY: 'gsk_env_secret_777',
+    PROVIDER_1_MODELS: 'openai/gpt-oss-120b',
+    PROVIDER_3_NAME: 'CF 嵌入', PROVIDER_3_BASE_URL: 'https://api.cloudflare.com/client/v4/accounts/abc/ai/v1', PROVIDER_3_EMBED_MODELS: '@cf/baai/bge-m3',
   }
   const cookie = `__Host-session=${encodeURIComponent(await createSession(env, 1))}`
   const chatBodies = []
@@ -107,13 +111,33 @@ test('frontend: server-first store, provider import, grouped models, provider_id
   assert.ok(enc && !enc.includes('sk-browser'))
   assert.equal(JSON.stringify(Object.fromEntries(Object.entries(w.localStorage))).includes('sk-browser-secret'), false)
 
-  // 2) 模型選單分組：Groq（內建）、OpenAI、自建
+  // 2) 模型選單分組：環境變數供應商、OpenAI、自建（沒有內建組；只有嵌入模型的 CF 不在聊天選單）
   const labels = await waitFor(() => {
     const els = [...w.document.querySelectorAll('#model-menu .model-group-label')].map((e) => e.textContent)
     return els.length === 3 ? els : null
   })
-  assert.match(labels[0], /Groq/)
+  assert.match(labels[0], /Groq 環境/)
   assert.match(labels[2], /自建.*無 Key/)
+  assert.equal(labels.some((l) => /CF 嵌入/.test(l)), false)
+  // 沒有自動預設模型：尚未選擇前按送出 → 要求先選模型，不會打 /api/chat
+  assert.equal(w.document.getElementById('model-picker-label').textContent, '選擇模型')
+  const input0 = w.document.getElementById('prompt-input')
+  input0.value = '還沒選模型'
+  input0.dispatchEvent(new w.Event('input', { bubbles: true }))
+  w.document.getElementById('send-btn').click()
+  await waitFor(() => w.document.body.textContent.includes('請先在設定中新增供應商並選擇模型'))
+  assert.equal(chatBodies.length, 0)
+  // 環境變數供應商在面板唯讀顯示，Key 不會出現在瀏覽器
+  const psel = w.document.getElementById('provider-active-select')
+  assert.ok([...psel.options].some((o) => o.value === 'env-1' && /環境變數/.test(o.textContent)))
+  psel.value = 'env-1'
+  psel.dispatchEvent(new w.Event('change'))
+  assert.equal(w.document.getElementById('provider-name').readOnly, true)
+  assert.equal(w.document.getElementById('provider-save-btn').disabled, true)
+  assert.equal(w.document.getElementById('provider-delete-btn').disabled, true)
+  assert.match(w.document.getElementById('provider-env-note').textContent, /由環境變數管理/)
+  assert.equal(w.document.documentElement.outerHTML.includes('gsk_env_secret'), false)
+  assert.equal(JSON.stringify(Object.fromEntries(Object.entries(w.localStorage))).includes('gsk_env_secret'), false)
   const opts = [...w.document.querySelectorAll('#model-menu .model-option')].map((e) => e.getAttribute('data-model'))
   assert.ok(opts.includes('p171|qwen-local'))
 

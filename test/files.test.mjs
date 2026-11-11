@@ -46,6 +46,7 @@ test('path-style object URLs and filename safety', () => {
 test('file upload → complete → knowledge search → download → delete', async () => {
   const pg = new PGlite({ extensions: { pg_trgm } })
   await pg.exec(fs.readFileSync(new URL('../db/migrations/0001_init.sql', import.meta.url), 'utf8'))
+  await pg.exec(fs.readFileSync(new URL('../db/migrations/0003_model_kinds.sql', import.meta.url), 'utf8'))
   const db = {
     query: async (text, params = []) => (await pg.query(text, params)).rows,
     tx: (st) => pg.transaction(async (t) => { const out = []; for (const [q, p] of st) out.push((await t.query(q, p || [])).rows); return out }),

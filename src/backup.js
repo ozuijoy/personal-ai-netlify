@@ -1,6 +1,7 @@
 // 第五階段：完整備份匯出與還原（JSON）。
 // 依資料表分頁匯出，每頁 ≤ 約 3.5 MB（Function 緩衝回應上限 6 MB，docs.netlify.com/build/functions/api）；
 // 前端把各頁組成單一 .json 檔下載。還原時前端再分批（每批 ≤ 3.5 MB）送回。
+// 環境變數供應商（env-N）不在資料庫，不會匯出；還原時也會略過 env- 開頭的供應商 id。
 // 不匯出：API Key 密文（只能用伺服器金鑰解，備份帶走也沒用、還增加外洩面）、doc_chunks（還原時重新切塊）、
 // 檔案本體（在物件儲存；只匯出中繼資料）、登入紀錄、舊 D1 原始資料。
 import { OWNER } from './repo/providers.js'
@@ -14,7 +15,7 @@ export const PAGE_BYTES = 3_500_000
 export const TABLES = {
   projects:        { cols: ['id', 'name', 'description', 'instructions', 'data', 'created_at', 'updated_at'], key: 'id' },
   providers:       { cols: ['id', 'name', 'base_url', 'api_key_hint', 'extra_headers', 'enabled', 'sort_order', 'created_at', 'updated_at'], key: 'id' },
-  provider_models: { cols: ['id', 'provider_id', 'model_id', 'display_name', 'enabled', 'sort_order', 'created_at'], key: 'id', noOwner: true, conflict: '(provider_id, model_id)' },
+  provider_models: { cols: ['id', 'provider_id', 'kind', 'model_id', 'display_name', 'enabled', 'sort_order', 'created_at'], key: 'id', noOwner: true, conflict: '(provider_id, kind, model_id)' },
   settings:        { cols: ['key', 'value', 'updated_at'], key: 'key', conflict: '(owner_id, key)' },
   profiles:        { cols: ['data', 'updated_at'], key: 'owner_id', conflict: '(owner_id)' },
   files:           { cols: ['id', 'project_id', 'filename', 'mime', 'size_bytes', 'sha256', 'storage_key', 'status', 'error', 'created_at', 'updated_at'], key: 'id' },
@@ -80,6 +81,10 @@ export async function restoreRows(db, table, rawRows, ownerId = OWNER) {
   const def = TABLES[table]
   if (!def) throw new Error('未知的資料表')
   let rows = validateRows(table, rawRows)
+  // 環境變數供應商只存在於部署設定，不能由備份建立
+  if (table === 'providers') rows = rows.filter((r) => !/^env-/i.test(String(r.id || '')))
+  // 0003 之前的備份沒有 kind：視為聊天模型
+  if (table === 'provider_models') for (const r of rows) if (r.kind !== 'embed') r.kind = 'chat'
   if (!rows.length) return { table, restored: 0 }
   // 子表的外鍵只接受自己名下的父列
   if (table === 'provider_models' || table === 'messages') {

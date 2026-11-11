@@ -117,7 +117,7 @@ function sseFromJson(data) {
 
 // loadContext(body, env, text) -> {text, skills, memories}：伺服器注入技能與 Memory（失敗不影響聊天）。
 // resolveProvider(body, env) -> {baseUrl, apiKey, model}；Netlify 版由呼叫端注入（查 Neon + 解密），
-// 未注入時沿用舊行為（請求內帶 provider 或伺服器 Groq）。
+// 未注入時只接受請求內帶的 provider（沒有內建供應商）。
 export async function handleChat(request, env, { resolveProvider, loadContext } = {}) {
   let body
   try {
@@ -131,7 +131,7 @@ export async function handleChat(request, env, { resolveProvider, loadContext } 
 
   let provider
   try {
-    provider = resolveProvider ? await resolveProvider(body, env) : providerFromBody(body, env)
+    provider = resolveProvider ? await resolveProvider(body, env) : providerFromBody(body)
     if (!provider.model) throw new Error('請先設定供應商模型')
   } catch (err) {
     return errorJson(err.message || '供應商設定不正確', 400, 'provider_config')

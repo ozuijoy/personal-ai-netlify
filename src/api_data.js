@@ -2,11 +2,11 @@
 //
 //   GET    /api/settings                PUT /api/settings          {key: value | null}
 //   GET    /api/profile                 PUT /api/profile           {...}
-//   GET    /api/providers               POST /api/providers
-//   PATCH  /api/providers/:id           DELETE /api/providers/:id
-//   PUT    /api/providers/:id/models    {models:[...]}
-//   POST   /api/providers/:id/discover  向上游 /models 取清單（不寫入）
-//   GET    /api/models/grouped          模型選單（依供應商分組）
+//   GET    /api/providers               POST /api/providers        （環境變數供應商 env-N 唯讀，列在最前）
+//   PATCH  /api/providers/:id           DELETE /api/providers/:id  （env-N → 403 env_provider_readonly）
+//   PUT    /api/providers/:id/models    {models?:[...], embed_models?:[...]}
+//   POST   /api/providers/:id/discover  向上游 /models 取清單（不寫入；env-N 用環境變數 Key）
+//   GET    /api/models/grouped          聊天模型選單（依供應商分組，只含聊天模型）
 //   GET    /api/conversations           POST /api/conversations   （含 messages 時整份覆蓋）
 //   GET    /api/conversations/:id       PATCH / PUT / DELETE /api/conversations/:id
 //   POST   /api/conversations/:id/messages  {messages:[...]}       串流結束後追加
@@ -17,7 +17,7 @@
 //   POST   /api/files/:id/complete      {text?, title?, extract, pages?} 上傳完成、寫入知識庫
 //   GET    /api/files/:id/download[?inline=1]  → {url}（presigned GET，5 分鐘）
 //   DELETE /api/files/:id
-//   GET    /api/embeddings/status       PUT /api/embeddings/config {provider_id, model} | {reset:true}   POST /api/embeddings/backfill
+//   GET    /api/embeddings/status       PUT /api/embeddings/config {provider_id, model} | {reset:true}（關閉）   POST /api/embeddings/backfill
 //   GET    /api/admin/keys              POST /api/admin/rekey（金鑰輪替後重新加密）
 //   GET    /api/backup[?table=&cursor=] 分頁匯出   POST /api/backup/restore {table, rows}
 //   POST   /api/memories/suggest       {messages, provider_id, model} → 建議（不寫入）
@@ -27,7 +27,7 @@ import { bodyErrorMessage, readJsonBody } from './body.js'
 import { getDb } from './db.js'
 import { fetchWithTimeout, modelsUrl, upstreamHeaders } from './providers.js'
 import {
-  createProvider, deleteProvider, keyStatus, rekeyProviders, groupedModels, listProviders, providerCredentials, setProviderModels, updateProvider,
+  createProvider, deleteProvider, envProviderErrors, keyStatus, rekeyProviders, groupedModels, listProviders, providerCredentials, setProviderModels, updateProvider,
 } from './repo/providers.js'
 import {
   ENTITIES, createEntity, deleteEntity, getEntity, getProfile, getSettings, listEntities, putProfile, putSettings,
@@ -85,11 +85,11 @@ const ROUTES = [
   ['GET', /^\/api\/profile$/, async ({ db }) => json({ ok: true, profile: await getProfile(db) })],
   ['PUT', /^\/api\/profile$/, async ({ db, body }) => json({ ok: true, profile: await putProfile(db, body.profile || body) })],
 
-  ['GET', /^\/api\/providers$/, async ({ db, env }) => json({ ok: true, providers: await listProviders(db, env) })],
+  ['GET', /^\/api\/providers$/, async ({ db, env }) => json({ ok: true, providers: await listProviders(db, env), env_errors: envProviderErrors(env) })],
   ['POST', /^\/api\/providers$/, async ({ db, env, body }) => json({ ok: true, provider: await createProvider(db, env, body) }, 201)],
   ['PATCH', new RegExp(`^/api/providers/${ID}$`), async ({ db, env, body, m }) => found(await updateProvider(db, env, m[1], body), 'provider')],
   ['DELETE', new RegExp(`^/api/providers/${ID}$`), async ({ db, m }) => ok(await deleteProvider(db, m[1]))],
-  ['PUT', new RegExp(`^/api/providers/${ID}/models$`), async ({ db, env, body, m }) => found(await setProviderModels(db, env, m[1], body.models), 'provider')],
+  ['PUT', new RegExp(`^/api/providers/${ID}/models$`), async ({ db, env, body, m }) => found(await setProviderModels(db, env, m[1], body), 'provider')],
   ['POST', new RegExp(`^/api/providers/${ID}/discover$`), async ({ db, env, m, request }) => discoverModels(db, env, m[1], request)],
   ['GET', /^\/api\/models\/grouped$/, async ({ db, env }) => json({ ok: true, groups: await groupedModels(db, env) })],
 
@@ -201,6 +201,7 @@ export async function dataRoute(request, env, path, method) {
   } catch (err) {
     const msg = err && err.message ? String(err.message) : ''
     if (err && err.status === 503) return errorJson(msg, 503, 'storage_not_configured')
+    if (err && err.code === 'env_provider_readonly') return errorJson(msg, 403, err.code)
     // 使用者輸入錯誤（中文訊息）回 400；資料庫 / 程式錯誤不洩漏細節。
     if (/[\u4e00-\u9fff]/.test(msg)) return errorJson(msg.slice(0, 300), 400, 'invalid_input')
     console.error('data route failed', path, err && err.stack ? err.stack : err)

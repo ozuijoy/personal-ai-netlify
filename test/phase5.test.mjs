@@ -19,6 +19,7 @@ async function makeDb({ vectors = true } = {}) {
   const pg = new PGlite({ extensions: { pg_trgm, vector } })
   await pg.exec(sql('0001_init.sql'))
   if (vectors) await pg.exec(sql('0002_vectors.sql'))
+  await pg.exec(sql('0003_model_kinds.sql'))
   return {
     query: async (text, params = []) => (await pg.query(text, params)).rows,
     tx: (st) => pg.transaction(async (t) => { const out = []; for (const [q, p] of st) out.push((await t.query(q, p || [])).rows); return out }),
@@ -260,64 +261,4 @@ test('backup: paged export without secrets, restore into empty database', async 
   const r1 = await B.call('POST', '/api/backup/restore', { table: 'messages', rows: [{ conversation_id: 'nope', seq: 1, role: 'user', content: 'x' }] })
   assert.equal(r1.data.restored, 0)
   assert.equal((await B.call('POST', '/api/backup/restore', { table: 'login_attempts', rows: [] })).status, 400)
-})
-
-test('built-in Cloudflare Workers AI embeddings: default on, can disable / reset, no key in DB', async () => {
-  const db = await makeDb()
-  const account = 'a'.repeat(32)
-  const { call } = await client(db, { CLOUDFLARE_ACCOUNT_ID: account, CLOUDFLARE_AI_TOKEN: 'cf-token-xyz' })
-  await call('POST', '/api/documents', { id: 'd_cat', title: '寵物筆記', content: '我家的貓喜歡曬太陽。' })
-  await call('POST', '/api/documents', { id: 'd_car', title: '交通', content: '這台車每公里耗油不多。' })
-
-  let st = (await call('GET', '/api/embeddings/status')).data.status
-  assert.equal(st.configured, true)
-  assert.equal(st.default, true)
-  assert.equal(st.provider_id, 'builtin-cloudflare-embed')
-  assert.equal(st.model, '@cf/baai/bge-m3')
-  assert.equal(st.dims, 1024)
-  assert.equal(st.builtin.model, '@cf/baai/bge-m3')
-  assert.equal(st.pending, 2)
-  const me = (await call('GET', '/api/me')).data
-  assert.equal(me.config.embeddingBuiltin, true)
-
-  await withEmbeddings(async (calls) => {
-    const bf = await call('POST', '/api/embeddings/backfill', {})
-    assert.equal(bf.data.done, 2)
-    assert.equal(calls[0].url, `https://api.cloudflare.com/client/v4/accounts/${account}/ai/v1/embeddings`)
-    assert.equal(calls[0].auth, 'Bearer cf-token-xyz')
-    assert.equal(calls[0].body.model, '@cf/baai/bge-m3')
-    const r = await call('GET', '/api/documents/search?q=feline')
-    assert.equal(r.data.mode, 'hybrid')
-    assert.equal(r.data.results[0].document_id, 'd_cat')
-  })
-  // Token 不進資料庫
-  const dump = JSON.stringify(await db.query(`SELECT * FROM settings`)) + JSON.stringify(await db.query(`SELECT * FROM providers`))
-  assert.ok(!dump.includes('cf-token-xyz'))
-
-  // 使用者關閉 → 保持關閉（不會被預設蓋回）
-  await call('PUT', '/api/embeddings/config', { provider_id: null })
-  st = (await call('GET', '/api/embeddings/status')).data.status
-  assert.equal(st.configured, false)
-  assert.ok(st.builtin)
-  let r = await call('GET', '/api/documents/search?q=' + encodeURIComponent('耗油'))
-  assert.equal(r.data.mode, 'keyword')
-  // 回到預設
-  const reset = await call('PUT', '/api/embeddings/config', { reset: true })
-  assert.equal(reset.data.config.provider_id, 'builtin-cloudflare-embed')
-  // 明確選內建（會實測一次）
-  await withEmbeddings(async () => {
-    const cfg = await call('PUT', '/api/embeddings/config', { provider_id: 'builtin-cloudflare-embed', model: '@cf/baai/bge-m3' })
-    assert.equal(cfg.status, 200)
-    assert.equal(cfg.data.config.dims, 4)
-  })
-
-  // 伺服器沒設定 Cloudflare → 沒有內建、未設定時只用關鍵字
-  const db2 = await makeDb()
-  const c2 = await client(db2)
-  st = (await c2.call('GET', '/api/embeddings/status')).data.status
-  assert.equal(st.configured, false)
-  assert.equal(st.builtin, null)
-  // 帳號 ID 格式不對也不啟用
-  const c3 = await client(await makeDb(), { CLOUDFLARE_ACCOUNT_ID: 'not-an-id', CLOUDFLARE_AI_TOKEN: 't' })
-  assert.equal((await c3.call('GET', '/api/embeddings/status')).data.status.builtin, null)
 })

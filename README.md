@@ -3,11 +3,11 @@
 [`scupro/personal-ai`](https://github.com/scupro/personal-ai)（Cloudflare Workers + D1）的移植版，改用 **Netlify Functions / Edge Functions + Neon Postgres**。
 資料以伺服器為主（不再依賴瀏覽器 localStorage），API Key 在伺服器端以 AES-256-GCM 加密。
 
-> **狀態：五個階段已在本機完成，46 項測試通過，尚未部署。**
-> 部署前仍需實測：真實 Neon（含 pgvector）、Neon Object Storage、Edge 串流超過 60 秒、Cloudflare Workers AI 嵌入端點。
+> **狀態：五個階段已在本機完成，52 項測試通過，尚未部署。**
+> 部署前仍需實測：真實 Neon（含 pgvector）、Neon Object Storage、Edge 串流超過 60 秒、實際使用的供應商（聊天與嵌入）端點。
 
 - 完整架構與設計理由：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- 資料表：[`db/migrations/0001_init.sql`](db/migrations/0001_init.sql)、[`db/migrations/0002_vectors.sql`](db/migrations/0002_vectors.sql)
+- 資料表：[`db/migrations/0001_init.sql`](db/migrations/0001_init.sql)、[`db/migrations/0002_vectors.sql`](db/migrations/0002_vectors.sql)、[`db/migrations/0003_model_kinds.sql`](db/migrations/0003_model_kinds.sql)
 
 ---
 
@@ -17,11 +17,11 @@
 |---|---|
 | 登入 | 單一密碼登入；HMAC 簽章 session cookie（驗證不查資料庫）；登入失敗節流；改 `SESSION_VERSION` 即登出所有裝置 |
 | 聊天 | `/api/chat` 由 Edge Function 串流代理（不受 Functions 60 秒同步上限）；串流結束後前端再寫入訊息 |
-| 供應商與模型 | 自訂 OpenAI 相容供應商，**允許空 API Key**（自架模型）；Key 加密存伺服器，前端只看得到是否已設定；模型選單**依供應商分組**；可從供應商自動探索模型 |
+| 供應商與模型 | **沒有內建供應商**。來源只有兩種：設定面板新增（Key 加密存資料庫）與 `PROVIDER_N_*` 環境變數（唯讀，Key 不進資料庫也不到瀏覽器）。任何 OpenAI 相容服務皆可，**允許空 API Key**（自架模型）；聊天模型與嵌入模型分開設定；模型選單**依供應商分組**；預設模型在面板選；可從供應商自動探索模型 |
 | 資料 | 個人資料、設定、介面偏好、對話、專案、Prompt、知識庫文件全部存 Neon |
 | 檔案 | 瀏覽器以 presigned URL 直傳物件儲存（不經 Function）；PDF（pdf.js）與 DOCX（mammoth）在瀏覽器端抽文字，伺服器切塊（約 1200 字、重疊 150）寫入知識庫 |
 | 檢索 | 關鍵字（英數詞＋中文二字組＋全文分數）＋語意向量，以 RRF（k=60）合併；嵌入失敗自動退回關鍵字 |
-| 語意嵌入 | 預設 **Cloudflare Workers AI `@cf/baai/bge-m3`**（1024 維，多語、支援中文）；可改用任何 OpenAI 相容 `/embeddings` 供應商或關閉 |
+| 語意嵌入 | **預設關閉**（只用關鍵字）；在面板選任一供應商的嵌入模型即開啟（例如 Cloudflare Workers AI `@cf/baai/bge-m3`、Cohere `embed-v5.0-pro`、OpenAI `text-embedding-3-small`） |
 | 技能 | 自訂技能由伺服器注入系統提示（always／keyword／手動）；輸入框可選技能，前端無法偽造 |
 | 記憶 | 長期記憶由伺服器注入；對話後可產生「記憶建議」，**使用者確認後才寫入** |
 | 維運 | 金鑰輪替與重新加密、JSON 分頁備份與還原、舊 D1 資料匯入 |
@@ -36,7 +36,7 @@
   └─ 檔案上傳／下載（presigned URL）──────► Neon Object Storage（S3 相容）
 ```
 
-聊天預設供應商為 **Groq**（Groq 沒有嵌入 API，因此嵌入另用 Cloudflare Workers AI）。
+沒有內建供應商：聊天與嵌入都用你在設定面板新增、或用 `PROVIDER_N_*` 環境變數設定的 OpenAI 相容供應商，見[用環境變數設定供應商](#用環境變數設定供應商)。
 
 ## 目錄
 
@@ -50,13 +50,14 @@ src/auth.js, login_page.js             登入與 session
 src/crypto.js                          AES-GCM 加解密、金鑰版本
 src/db.js                              Neon 驅動封裝
 src/storage.js                         S3 相容物件儲存（自寫 SigV4、presign）
+src/providers.js                       URL 檢查、環境變數供應商（PROVIDER_N_*）解析
 src/embeddings.js                      嵌入、混合檢索、補建向量
 src/memory_suggest.js                  記憶建議
 src/backup.js                          匯出與還原
 src/repo/                              providers / entities / conversations / files / context / login
 src/migrate/d1.js                      舊 D1 sync_items → Neon
 src/web_decoded.html                   前端原始檔（npm run build 產生 public/assets）
-db/migrations/                         0001 基礎資料表、0002 向量
+db/migrations/                         0001 基礎資料表、0002 向量、0003 模型分聊天／嵌入
 scripts/                               migrate、D1 匯入、rekey、bucket CORS、前端建置
 test/                                  node:test；資料庫測試以 PGlite 實跑 SQL，前端以 jsdom
 ```
@@ -68,14 +69,15 @@ test/                                  node:test；資料庫測試以 PGlite 實
 | `/api/health`、`/api/config`、`/api/me` | 狀態、公開設定、目前使用者與設定 |
 | `/api/login`、`/api/logout` | 登入、登出 |
 | `/api/chat` | 聊天串流（Edge） |
-| `/api/providers`、`/api/providers/:id`、`/:id/models`、`/:id/discover` | 供應商 CRUD、模型、自動探索 |
-| `/api/models`、`/api/models/grouped` | 模型清單（分組） |
+| `/api/providers` | 列出全部供應商（`env-N` 環境變數供應商唯讀、在前；`env_errors` 列出被略過的設定）、新增面板供應商 |
+| `/api/providers/:id`、`/:id/models`、`/:id/discover` | 修改／刪除面板供應商、設定聊天模型 `models` 與嵌入模型 `embed_models`、自動探索；`env-N` 修改或刪除回 `403 env_provider_readonly` |
+| `/api/models`、`/api/models/grouped` | 用 Base URL 探索模型（舊前端）；聊天模型選單（依供應商分組，只含聊天模型） |
 | `/api/profile`、`/api/settings` | 個人資料、設定 |
 | `/api/conversations`、`/:id`、`/:id/messages` | 對話與訊息 |
 | `/api/documents/search` | 知識庫檢索（混合） |
 | `/api/files`、`/:id/complete`、`/:id/download` | 上傳（presign）、完成、下載 |
 | `/api/memories`、`/api/memories/suggest` | 記憶、記憶建議 |
-| `/api/embeddings/status`、`/config`、`/backfill` | 嵌入狀態、設定、補建向量 |
+| `/api/embeddings/status`、`/config`、`/backfill` | 嵌入狀態（含各供應商嵌入模型 `options`）、設定 `{provider_id, model}` 或 `{reset:true}` 關閉、補建向量 |
 | `/api/backup`、`/api/backup/restore` | 匯出、還原 |
 | `/api/admin/keys`、`/api/admin/rekey` | 金鑰狀態、重新加密 |
 | `/api/image`、`/api/tool`、`/api/sync*` | 圖片代理、工具（search/fetch/calc/time/docs）、舊同步相容 |
@@ -92,10 +94,12 @@ test/                                  node:test；資料庫測試以 PGlite 實
 | `DATABASE_URL` | ✓ | Neon pooled 連線字串（`sslmode=require`） |
 | `SESSION_DAYS` | | 預設 30 |
 | `SESSION_VERSION` | | 改值即登出所有裝置 |
-| `GROQ_API_KEY`、`GROQ_MODEL` | | 內建 Groq 聊天 |
 | `TAVILY_API_KEY` | | 網路搜尋工具 |
-| `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_AI_TOKEN` | | 內建語意檢索（兩者都有才啟用；取得方式見[設定 Workers AI Token](#設定-workers-ai-token)） |
-| `EMBEDDING_MODEL` | | 預設 `@cf/baai/bge-m3` |
+| `PROVIDER_N_NAME` | 該組必填 | 環境變數供應商名稱，`N` = 1–20，見[用環境變數設定供應商](#用環境變數設定供應商) |
+| `PROVIDER_N_BASE_URL` | 該組必填 | OpenAI 相容基底網址（HTTPS） |
+| `PROVIDER_N_API_KEY` | | 該組的 API Key，可留空 |
+| `PROVIDER_N_MODELS` | | 聊天模型，逗號分隔 |
+| `PROVIDER_N_EMBED_MODELS` | | 嵌入模型，逗號分隔 |
 | `STORAGE_ENDPOINT` | 檔案功能 | 物件儲存端點，見[設定物件儲存](#設定物件儲存) |
 | `STORAGE_REGION` | | 區域，預設 `us-east-2` |
 | `STORAGE_BUCKET` | 檔案功能 | bucket 名稱 |
@@ -110,7 +114,7 @@ test/                                  node:test；資料庫測試以 PGlite 實
 
 ```bash
 npm install
-npm test                 # 46 項；不需要真的資料庫（PGlite）
+npm test                 # 52 項；不需要真的資料庫（PGlite）
 npm run gen:key          # 產生 ENCRYPTION_KEY
 npm run build            # 由 src/web_decoded.html 產生 public/
 DATABASE_URL=... npm run db:migrate
@@ -119,49 +123,134 @@ npm run dev              # netlify dev
 
 ## 部署步驟
 
-1. **Neon**：建立專案（區域建議 AWS `us-east-2`，與 Netlify Functions 預設區域相同），取得 pooled `DATABASE_URL`，執行 `npm run db:migrate`。`0002_vectors.sql` 需要 pgvector 擴充。
+1. **Neon**：建立專案（區域建議 AWS `us-east-2`，與 Netlify Functions 預設區域相同），取得 pooled `DATABASE_URL`，執行 `npm run db:migrate`（套用 0001–0003；已部署過的資料庫要先跑一次以套用 `0003_model_kinds.sql`，再部署新版程式）。`0002_vectors.sql` 需要 pgvector 擴充。
 2. **物件儲存**（選用）：依[設定物件儲存](#設定物件儲存)建立 bucket 與憑證、填環境變數並設定 CORS。
-3. **Netlify**：連接本倉庫，build 指令 `npm run build`、publish 目錄 `public`（已寫在 `netlify.toml`），填入環境變數。
+3. **Netlify**：連接本倉庫，build 指令 `npm run build`、publish 目錄 `public`（已寫在 `netlify.toml`），填入環境變數（要用環境變數供應商就加上 `PROVIDER_N_*`）。
 4. **先用 Deploy Preview 實測**（不耗 credits），確認登入、聊天串流、檔案上傳、檢索都正常，再做正式部署。
-5. **語意檢索**（選用）：依下方「[設定 Workers AI Token](#設定-workers-ai-token)」取得帳號 ID 與 Token，填進 Netlify 環境變數後重新部署，再於設定頁或 `/api/embeddings/backfill` 補建既有文件的向量。
+5. **供應商與預設值**：登入後到設定 → 供應商新增供應商（或確認 `PROVIDER_N_*` 已出現），再到設定 → 一般選「預設模型」。
+6. **語意檢索**（選用）：在設定 → 供應商 →「語意檢索」選一個有嵌入模型的供應商（例如[Cloudflare Workers AI](#範例cloudflare-workers-ai嵌入)），按「儲存並測試」，再按「補建索引」或呼叫 `/api/embeddings/backfill` 補建既有文件的向量。
 
-## 設定 Workers AI Token
+## 用環境變數設定供應商
 
-內建語意檢索需要兩個值，**只放在 Netlify 環境變數**，不寫進程式、`netlify.toml` 或資料庫，也不會傳到瀏覽器。
+本專案**沒有內建供應商**，也沒有自動預設模型。聊天與語意嵌入的供應商只有兩個來源：
 
-**1. 在 Cloudflare 取得**（[官方步驟](https://developers.cloudflare.com/workers-ai/get-started/rest-api/)）
+1. **設定面板**：設定 → 供應商 →「新增」。Key 以 AES-256-GCM 加密存資料庫，可編輯、刪除，會進備份（不含 Key）。
+2. **環境變數**：部署者用 `PROVIDER_N_*` 設定，`N` 為 `1` 到 `20`。適合想在部署時就把 Key 放好、不經過瀏覽器的情況。
 
-1. 登入 Cloudflare 儀表板，進入 **Workers AI** 頁面。
-2. 選 **Use REST API**。
-3. 選 **Create a Workers AI API Token** → 檢查預填內容 → **Create API Token** → **Copy API Token**。Token 只顯示這一次，請先存好。
-4. 在同一頁 **Get Account ID** 複製 **Account ID**（32 位十六進位）。
+環境變數供應商的規則：
 
-若改在 My Profile → API Tokens 自訂 Token，權限需同時有 **Workers AI - Read** 與 **Workers AI - Edit**。
+- 伺服器會掃描 `1` 到 `20` 的**全部**編號，中間跳號沒關係（例如只設 1、4、9）。
+- 供應商 id 為 `env-N`（例如 `env-1`），在模型選單與嵌入設定裡和面板供應商並列，各自一組。
+- Key 只從環境變數讀取：**不寫進資料庫、不回傳瀏覽器、不進備份**。面板會唯讀顯示這些供應商並註明「由環境變數管理」，只顯示是否有 Key（`has_key`），不顯示 Key 或 Key 末碼。
+- 不能從面板或 API 修改、刪除（`PATCH`／`DELETE`／`PUT …/models` 回 `403 env_provider_readonly`）；要改請改環境變數後重新部署。
+- 「抓取模型」（`/api/providers/env-N/discover`）仍可用，伺服器會用環境變數的 Key 代為查詢。
+- 設定有誤（缺 `BASE_URL`、網址不是 HTTPS、指向私有網段等）的那一組會被略過，原因會顯示在設定 → 供應商頁（`GET /api/providers` 的 `env_errors`，不含 Key）。
+- 聊天模型（`MODELS`）與嵌入模型（`EMBED_MODELS`）分開：聊天選單只列 `MODELS`，語意檢索的嵌入模型建議只列 `EMBED_MODELS`（仍可自由輸入其他模型名稱）。一組供應商可以只有聊天、只有嵌入，或兩者都有。
 
-**2. 填進 Netlify**
+**預設值在面板選。** 加好供應商後：
 
-Netlify 專案 → **Project configuration** → **Environment variables** → **Add a variable**：
+- **預設聊天模型**：設定 → 一般 →「預設模型」，或聊天輸入框上方的模型選單。沒選之前送出訊息會提示「請先在設定中新增供應商並選擇模型」。
+- **語意檢索**：設定 → 供應商 →「語意檢索（嵌入模型）」選供應商與嵌入模型，按「儲存並測試」。沒設定時為**關閉**，知識庫只用關鍵字檢索；選「不使用」即可再關閉。
 
-| Key | Value |
-|---|---|
-| `CLOUDFLARE_ACCOUNT_ID` | 上面的 Account ID |
-| `CLOUDFLARE_AI_TOKEN` | 上面的 API Token（建議勾選 secret） |
-| `EMBEDDING_MODEL` | 選填，預設 `@cf/baai/bge-m3` |
+### `PROVIDER_N_NAME`
 
-存好後**重新部署**，環境變數才會生效。
+- 內容：供應商的顯示名稱，出現在模型選單分組與設定面板。
+- 格式：任意文字，最多 100 字。**必填**；沒有這個變數，第 N 組就不存在。
+- 範例：
 
-**3. 確認**
+```
+PROVIDER_1_NAME=Groq
+```
 
-- 登入後到設定 → 供應商頁的「語意檢索」，應顯示內建 Cloudflare bge-m3 已啟用；`/api/embeddings/status` 的 `builtin` 欄位也會有值。
-- 本機可先用 curl 驗證 Token：
+### `PROVIDER_N_BASE_URL`
+
+- 內容：OpenAI 相容 API 的基底網址。伺服器會在後面接 `/chat/completions`、`/embeddings`、`/models`。
+- 格式：**必填**。必須是 `https://`；不可含帳號密碼、查詢字串或 `#`；`localhost`、私有／內網 IP、`.local`、`.internal` 等會被拒絕（與面板供應商相同的檢查）。結尾的 `/` 會自動去掉。
+- 範例：
+
+```
+PROVIDER_1_BASE_URL=https://api.groq.com/openai/v1
+```
+
+### `PROVIDER_N_API_KEY`
+
+- 內容：該供應商的 API Key，以 `Authorization: Bearer …` 送出。
+- 格式：選填。自架、不需驗證的閘道可以留空或不設，此時不送 `Authorization`。不可含換行。建議在 Netlify 勾選為 secret。
+- 範例：
+
+```
+PROVIDER_1_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### `PROVIDER_N_MODELS`
+
+- 內容：要出現在**聊天**模型選單的模型 id。
+- 格式：選填，逗號分隔；前後空白會去掉，重複的只留一個，每個最長 200 字。不設定時這組供應商不會出現在聊天選單。
+- 範例：
+
+```
+PROVIDER_1_MODELS=openai/gpt-oss-120b,openai/gpt-oss-20b
+```
+
+### `PROVIDER_N_EMBED_MODELS`
+
+- 內容：要出現在**語意檢索**嵌入模型選單的模型 id（供應商需支援 `/embeddings`）。
+- 格式：選填，逗號分隔，規則同 `PROVIDER_N_MODELS`。第一個模型是在嵌入設定選這組供應商時自動帶入的建議值。
+- 範例：
+
+```
+PROVIDER_2_EMBED_MODELS=@cf/baai/bge-m3
+```
+
+### 範例：Groq（聊天）
+
+```
+PROVIDER_1_NAME=Groq
+PROVIDER_1_BASE_URL=https://api.groq.com/openai/v1
+PROVIDER_1_API_KEY=gsk_...
+PROVIDER_1_MODELS=openai/gpt-oss-120b,openai/gpt-oss-20b
+```
+
+Groq 沒有嵌入 API，所以不設 `EMBED_MODELS`。Key 在 Groq Console 的 API Keys 頁建立。
+
+### 範例：Cloudflare Workers AI（嵌入）
+
+```
+PROVIDER_2_NAME=Cloudflare Workers AI
+PROVIDER_2_BASE_URL=https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1
+PROVIDER_2_API_KEY=<Workers AI API Token>
+PROVIDER_2_EMBED_MODELS=@cf/baai/bge-m3
+```
+
+- `<ACCOUNT_ID>` 換成你的 32 位十六進位 Account ID。
+- 取得 Token（[官方步驟](https://developers.cloudflare.com/workers-ai/get-started/rest-api/)）：Cloudflare 儀表板 → **Workers AI** → **Use REST API** → **Create a Workers AI API Token** → 檢查預填內容 → **Create API Token** → **Copy API Token**（只顯示一次）。同一頁 **Get Account ID** 可複製 Account ID。
+- 若改在 My Profile → API Tokens 自訂 Token，權限需同時有 **Workers AI - Read** 與 **Workers AI - Edit**。
+- `@cf/baai/bge-m3` 輸出 1024 維，多語、支援中文。免費額度為每帳號每天 10,000 Neurons，UTC 0 點重置（[Pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)）。
+
+先用 curl 確認 Token 可用：
 
 ```bash
-curl https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/v1/embeddings \
-  -H "Authorization: Bearer $CLOUDFLARE_AI_TOKEN" -H "Content-Type: application/json" \
+curl https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/ai/v1/embeddings \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"model":"@cf/baai/bge-m3","input":["測試"]}'
 ```
 
-兩個變數缺一個或 Account ID 格式不對時，內建檢索不會啟用，知識庫只用關鍵字檢索，其他功能不受影響。
+### 範例：Cohere（嵌入）
+
+```
+PROVIDER_3_NAME=Cohere
+PROVIDER_3_BASE_URL=https://api.cohere.ai/compatibility/v1
+PROVIDER_3_API_KEY=<Cohere API Key>
+PROVIDER_3_EMBED_MODELS=embed-v5.0-pro,embed-multilingual-v3.0
+```
+
+- 用的是 Cohere 的 OpenAI 相容端點（[Compatibility API](https://docs.cohere.com/docs/compatibility-api)）。`embed-v5.0-pro` 排第一，在嵌入設定選 Cohere 時會自動帶入。
+- 相容端點的 embeddings 只支援 `input`、`model`、`encoding_format`，**不支援** `input_type` 與 `dimensions`。因此 `embed-v5.0-pro` 固定輸出預設的 **2048 維**（無法改小）；`embed-multilingual-v3.0` 為 1024 維。換模型後需按「補建索引」重建向量。
+- 試用（trial）Key 每月上限 1,000 次 API 呼叫（[Rate limits](https://docs.cohere.com/docs/rate-limits)）；知識庫大時補建索引很快就會用完，正式使用請換 production Key。
+
+### 填進 Netlify
+
+Netlify 專案 → **Project configuration** → **Environment variables** → **Add a variable**，逐一加入上面的變數（Key 建議勾選 secret），存好後**重新部署**才會生效。
 
 ## 設定物件儲存
 
@@ -311,13 +400,14 @@ DATABASE_URL=... npm run db:import-d1 -- d1-export.json
 ## 維運
 
 - **金鑰輪替**：見[API Key 加密金鑰輪替](#api-key-加密金鑰輪替)。
-- **備份**：`/api/backup` 匯出 JSON，`/api/backup/restore` 還原。備份**不含** API Key 與檔案本體；還原後自訂供應商需重新輸入 Key，內建 Cloudflare 嵌入則可直接重建向量。
+- **備份**：`/api/backup` 匯出 JSON，`/api/backup/restore` 還原。備份**不含** API Key、檔案本體與環境變數供應商（`env-N` 不會被還原建立）；還原後面板供應商需重新輸入 Key，環境變數供應商只要新環境有同樣的 `PROVIDER_N_*` 即可直接使用與重建向量。
 
 ## 免費額度提醒
 
 - **Netlify Free**：每月 300 credits、硬上限，正式部署每次 15 credits，Deploy Preview 免費（[How credits work](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/)）。Functions 同步回應上限 60 秒（[Functions](https://docs.netlify.com/build/functions/configuration/)）。
 - **Neon Free**：每專案 100 CU-hours／月、儲存 1 GB、閒置 5 分鐘自動暫停；Object Storage 5 GB（[Plans](https://neon.com/docs/introduction/plans)）。
-- **Cloudflare Workers AI**：每帳號每天 10,000 Neurons 免費，UTC 0 點重置；超額時當天語意檢索退回關鍵字（[Pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)）。
+- **Cloudflare Workers AI**（若用它當嵌入供應商）：每帳號每天 10,000 Neurons 免費，UTC 0 點重置；超額時當天語意檢索退回關鍵字（[Pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)）。
+- **Cohere trial Key**（若用它當嵌入供應商）：每月 1,000 次 API 呼叫（[Rate limits](https://docs.cohere.com/docs/rate-limits)）。
 
 ## 授權
 

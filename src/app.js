@@ -26,7 +26,7 @@ import { handleChat } from './chat.js'
 import { chatContextLoader } from './repo/context.js'
 import { handleImageRequest } from './images.js'
 import { TOOLS, runTool } from './tools/registry.js'
-import { DEFAULT_GROQ_MODEL, builtinEmbeddingProvider, fetchWithTimeout, modelsUrl, providerFromBody, upstreamHeaders } from './providers.js'
+import { envProviders, fetchWithTimeout, modelsUrl, providerFromBody, upstreamHeaders } from './providers.js'
 import { providerCredentials, resolveChatProvider } from './repo/providers.js'
 
 // Netlify 版：靜態檔由 CDN 直接提供（public/），這個 router 只處理頁面與 /api/*。
@@ -206,9 +206,7 @@ async function meRoute(request, env) {
       encryption: encryptionConfigured(env),
       search: !!env.TAVILY_API_KEY,
       image: true,
-      defaultProvider: !!env.GROQ_API_KEY,
-      embeddingBuiltin: !!builtinEmbeddingProvider(env),
-      defaultModel: env.GROQ_MODEL || DEFAULT_GROQ_MODEL,
+      env_providers: envProviders(env).length,
       version: APP_VERSION,
     },
   })
@@ -225,7 +223,7 @@ async function modelsRoute(request, env) {
     // 新前端傳 provider_id（Key 在伺服器端解密）；舊前端傳 baseUrl + apiKey。
     const provider = body.provider_id
       ? await providerCredentials(getDb(env), env, String(body.provider_id))
-      : providerFromBody({ ...body, model: body.model || 'models' }, env)
+      : providerFromBody({ ...body, model: body.model || 'models' })
     baseUrl = provider.baseUrl
     apiKey = provider.apiKey
   } catch (err) {

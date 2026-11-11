@@ -17,6 +17,11 @@
 #   DATABASE_URL        Neon 連線字串（pooled，sslmode=require）（必要）
 #   SESSION_DAYS        預設 30
 #   SESSION_VERSION     改值即登出所有裝置
-#   GROQ_API_KEY / GROQ_MODEL / TAVILY_API_KEY  選用
-#   CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_AI_TOKEN / EMBEDDING_MODEL  選用（內建語意檢索）
+#   TAVILY_API_KEY      選用（網頁搜尋）
+#   PROVIDER_N_NAME / PROVIDER_N_BASE_URL / PROVIDER_N_API_KEY / PROVIDER_N_MODELS / PROVIDER_N_EMBED_MODELS
+#                       選用，N = 1..20。沒有內建供應商；例：
+#                       # PROVIDER_1_NAME = Groq
+#                       # PROVIDER_1_BASE_URL = https://api.groq.com/openai/v1
+#                       # PROVIDER_1_API_KEY = gsk_...
+#                       # PROVIDER_1_MODELS = openai/gpt-oss-120b
 #   KEY_VERSION / ENCRYPTION_KEY_PREVIOUS / KEY_VERSION_PREVIOUS  金鑰輪替時使用

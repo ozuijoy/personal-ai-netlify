@@ -75,17 +75,18 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 - 每筆隨機 12-byte IV；AAD = `provider:<owner>:<id>`，密文被搬到別列會解密失敗。
 - 儲存格式 `v1.<iv>.<ciphertext+tag>`（base64url），另存 `api_key_hint`（`••••末4碼`）供 UI 顯示。
 - **Key 只進不出**：API 回傳只有 `has_key`、`api_key_hint`；解密只在 Edge/Function 呼叫上游當下發生。
+- 環境變數供應商（`PROVIDER_N_*`，見 §3.6）的 Key 不加密入庫，只在呼叫上游時從環境變數讀取；API 只回 `has_key`，不回 Key 提示。
 - 輪替：新金鑰放 `ENCRYPTION_KEY`＋`KEY_VERSION=v2`，舊金鑰改放 `ENCRYPTION_KEY_PREVIOUS`＋`KEY_VERSION_PREVIOUS=v1`，舊密文仍可解；之後可跑重加密腳本。
 - 使用 WebCrypto，Node 與 Deno（Edge）共用同一份程式。
 
 ## 2. Neon 資料表
 
-完整 SQL：`db/migrations/0001_init.sql`（已用 PGlite 實際執行並通過測試）。
+完整 SQL：`db/migrations/0001_init.sql`、`0002_vectors.sql`、`0003_model_kinds.sql`（已用 PGlite 實際執行並通過測試）。
 
 | 表 | 用途 | 重點欄位 |
 |---|---|---|
-| `providers` | 自訂供應商 | `base_url`（CHECK https）、`api_key_enc` 可為 NULL（無 Key）、`api_key_hint`、`key_version` |
-| `provider_models` | 各供應商模型清單 | `(provider_id, model_id)` 唯一、`enabled`、`sort_order` |
+| `providers` | 設定面板新增的供應商（環境變數供應商不在這裡） | `base_url`（CHECK https）、`api_key_enc` 可為 NULL（無 Key）、`api_key_hint`、`key_version` |
+| `provider_models` | 各供應商模型清單 | `kind`（`chat`／`embed`，0003 新增，既有列為 `chat`）、`(provider_id, kind, model_id)` 唯一、`enabled`、`sort_order` |
 | `settings` | 介面偏好、目前模型等 | `(owner_id, key)` → `jsonb` |
 | `profiles` | 個人資料 | `data jsonb` |
 | `projects` | 專案 | `name`、`description`、`instructions`、`data` |
@@ -157,11 +158,11 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 
 **語意檢索（`src/embeddings.js`、`db/migrations/0002_vectors.sql`）**
 - `doc_chunks` 加 `embedding vector`（不限維度）與 `embedding_model`。換嵌入模型不必改 schema，查詢只比對同模型、同維度的向量。代價是不能建 HNSW 索引；個人規模（數萬段以內）順序掃描即可，日後可改固定維度並加 HNSW。
-- 預設嵌入模型：內建 Cloudflare Workers AI `@cf/baai/bge-m3`（1024 維、多語、支援中文與跨語言檢索），經 OpenAI 相容端點 `https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/embeddings`。只在伺服器設定 `CLOUDFLARE_ACCOUNT_ID` 與 `CLOUDFLARE_AI_TOKEN` 時啟用，Token 只在環境變數（取得與設定步驟見 README「設定 Workers AI Token」；自訂 Token 需 Workers AI - Read 與 Edit）。聊天預設仍是 Groq（Groq 沒有嵌入 API）。
-  - 免費額度（官方 developers.cloudflare.com/workers-ai/platform/pricing/）：每帳號每天 10,000 Neurons，UTC 0 點重置；bge-m3 為 1,075 Neurons／百萬 input tokens，約每天 930 萬 tokens。額度整個 Cloudflare 帳號共用，超過後當天呼叫失敗，檢索自動退回關鍵字。
-  - 使用者可改選任一 OpenAI 相容 `/embeddings` 供應商，或關閉。settings `embedding`：未設定 → 用內建（若有）；`{disabled:true}` → 關閉；`{provider_id, model, dims}` → 指定；`PUT /api/embeddings/config {reset:true}` 回到預設。
-  - 指定模型時先實測一次並記下維度；內建 bge-m3 維度已知（1024）。
-  - 還原備份後若用內建模型，不需重新輸入任何 Key 即可重建向量。
+- **沒有內建或預設的嵌入模型**。settings `embedding`：未設定 → **關閉**（只用關鍵字）；`{provider_id, model, dims}` → 開啟；`PUT /api/embeddings/config {reset:true}`（或 `provider_id` 為空）→ 刪除設定、回到關閉。舊版留下的 `{disabled:true}` 視同關閉。
+  - `provider_id` 可以是環境變數供應商 `env-N` 或設定面板（資料庫）的供應商；Key 一律在伺服器端取得（環境變數或解密）。
+  - 嵌入模型選單只列各供應商的**嵌入**模型（`PROVIDER_N_EMBED_MODELS` 或面板的「嵌入模型」欄位，即 `provider_models.kind = 'embed'`），聊天模型不會出現；仍可自由輸入其他模型名稱。`GET /api/embeddings/status` 的 `options` 提供這份清單。
+  - 指定模型時先實測一次並記下維度，不預設任何維度。例：Cloudflare Workers AI `@cf/baai/bge-m3` 為 1024 維；Cohere 相容端點不支援 `dimensions`，`embed-v5.0-pro` 固定 2048 維。
+  - 還原備份後，若嵌入設定指向 `env-N` 且新環境有同樣的 `PROVIDER_N_*`，不需輸入任何 Key 即可重建向量；指向面板供應商則需先重新輸入該供應商的 Key。
 - 補向量：`POST /api/embeddings/backfill` 每次最多處理約 40 秒（避開 Function 60 秒上限），前端迴圈呼叫；啟動時、上傳完成後、還原後會在背景自動補。文件內容更新會重新切塊，舊向量自然清除。
 - 檢索：關鍵字前 20 名與向量前 20 名（相似度 ≥ 0.2）以 RRF（k = 60）合併。嵌入 API 失敗時自動退回關鍵字，回應帶 `vector_error`。
 - 成本：每次知識庫檢索多一次嵌入呼叫（使用者自己的 Key）；在 Function 內執行，多數百毫秒 compute。
@@ -172,8 +173,24 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 
 **備份（`src/backup.js`）**
 - `GET /api/backup?table=&cursor=` 依資料表分頁匯出，每頁 ≤ 約 3.5 MB（Function 緩衝回應上限 6 MB）；前端組成一個 `.json` 檔下載。
-- 不含：API Key 密文、`doc_chunks`（還原時重新切塊）、上傳檔案本體（只含中繼資料）、登入紀錄。還原後供應商需重新輸入 Key。
+- 不含：API Key 密文、環境變數供應商（`env-N` 不在資料庫）、`doc_chunks`（還原時重新切塊）、上傳檔案本體（只含中繼資料）、登入紀錄。還原後面板供應商需重新輸入 Key。
+- 還原會略過 id 以 `env-` 開頭的供應商列（不能藉備份建立或覆蓋環境變數供應商）；0003 之前的備份沒有 `provider_models.kind`，一律視為聊天模型。
 - `POST /api/backup/restore {table, rows}`：以 `jsonb_populate_recordset` 寫入，相同 id 覆寫，其他資料保留；可重複執行。子表只接受自己名下的父列；找不到的 `project_id`、`file_id` 改為 NULL。
+
+## 3.6 供應商來源：環境變數與設定面板（沒有內建供應商）
+
+- **沒有任何內建供應商**（舊的 `builtin-groq`、`builtin-cloudflare-embed`、`GROQ_*`、`CLOUDFLARE_*`、`EMBEDDING_MODEL` 已移除，設定了也不會生效）。供應商只有兩個來源：
+  1. **設定面板（資料庫）**：可新增、修改、刪除；Key 以 AES-GCM 加密存 `providers.api_key_enc`；模型存 `provider_models`，`kind` 分 `chat`／`embed`。
+  2. **環境變數**：`PROVIDER_N_NAME`、`PROVIDER_N_BASE_URL`（必填）、`PROVIDER_N_API_KEY`、`PROVIDER_N_MODELS`、`PROVIDER_N_EMBED_MODELS`（選填，逗號分隔），`N = 1..20`。
+- 環境變數解析（`src/providers.js` `scanEnvProviders`）：每次請求掃描 1–20 **全部編號**（跳號不中斷）；`NAME` 或 `BASE_URL` 缺一則略過；`BASE_URL` 用與面板相同的 `normalizeBaseUrl` 檢查（HTTPS、擋 localhost／私有網段／`.local`／`.internal`），不合法則略過；`API_KEY` 可空（自架閘道，不送 `Authorization`），含換行或過長則略過。略過原因以 `{index, error}`（不含 Key）放在 `GET /api/providers` 的 `env_errors`，面板顯示。
+- 環境變數供應商 id 為 `env-N`，`source: 'env'`、`readonly: true`、`note: '由環境變數管理'`，`has_key` 只表示是否有 Key，`api_key_hint` 一律為空。Key **不進資料庫、不回傳瀏覽器、不進備份**。
+- 不可經 API 修改：`PATCH`／`DELETE /api/providers/env-N`、`PUT /api/providers/env-N/models` 回 `403 env_provider_readonly`；建立面板供應商時不能使用 `env-` 開頭的 id。`POST /api/providers/env-N/discover` 可用（伺服器用環境變數 Key 代查）。
+- 列表順序：環境變數供應商（依 N）在前，面板供應商在後。`GET /api/models/grouped` 只含**聊天**模型、每個供應商一組、沒有內建組；只有嵌入模型的供應商不出現在聊天選單。
+- **預設值在面板選，沒有自動預設**：
+  - 聊天：前端送 `provider_id + model`；請求沒帶時，伺服器改用設定面板選的 `settings.active_provider_id` + `settings.active_model_id`；仍沒有 → 400「請先在設定中新增供應商並選擇模型」。前端不再自動挑第一個模型，未選時模型選單顯示「選擇模型」，送出時提示同一句話。
+  - 嵌入：見 §3.5，未設定即關閉。
+- 舊前端相容：請求內帶 `provider: {baseUrl, apiKey}`（舊瀏覽器保存 Key 模式）仍可用，但沒有任何伺服器端退回。
+- 遷移：`0003_model_kinds.sql` 只新增欄位與唯一索引（`provider_models.kind`，既有列為 `chat`，唯一鍵改為 `(provider_id, kind, model_id)`），需在部署新版程式前執行 `npm run db:migrate`。
 
 ## 4. 前端改動範圍（第二階段）
 
@@ -181,8 +198,9 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 
 | 現有 localStorage | 改成 |
 |---|---|
-| `ta_providers_v1`、`ta_provider_active`、`ta_custom_key` | `/api/providers`（Key 不再存瀏覽器）；目前供應商存 `settings.active_model` |
-| `ta_model` | `settings.active_model = {provider_id, model_id}` |
+| `ta_providers_v1`、`ta_provider_active` | `/api/providers`（Key 不再存瀏覽器）；目前供應商存 `settings.active_provider_id` |
+| `ta_custom_key`（原 fork 的 Groq BYOK） | 已移除（欄位、`x-groq-user-key` 標頭與相關文案都刪除；啟動時清掉舊值） |
+| `ta_model` | `settings.active_model_id`（搭配 `active_provider_id`；沒有預設值） |
 | `ta_profile` | `/api/profile` |
 | `ta_ai_chats` | `/api/conversations`（列表只拿標題，打開才載訊息）＋串流後追加 |
 | `ta_projects`、`ta_project_active` | `/api/projects`；active 留在本機（裝置狀態） |
@@ -208,7 +226,8 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 
 - 後端：`providerFromBody` 已允許空 Key（只擋換行與超長）；空 Key 時**不送 `Authorization` 標頭**；資料庫 `api_key_enc` 可為 NULL。已有測試。
 - 前端（已完成）：移除 `apiKey.length < 8` 檢查；編輯時 Key 欄位留空 = 保留原 Key，勾選「清除已儲存的 Key」改為無 Key；模型欄位可填多個（逗號分隔），「抓取模型」對已儲存的供應商由伺服器代查，Key 不經過瀏覽器。
-- 模型選單（已完成）：改讀 `/api/models/grouped`，以 `<optgroup>`／分組標題呈現「Groq（內建）」與每個自訂供應商各自的模型；選取值為 `provider_id + model_id`，不再混用同一個 `MODELS` 陣列。內建 Groq 只在伺服器設定 `GROQ_API_KEY` 時出現。
+- 模型選單（已完成）：改讀 `/api/models/grouped`，以 `<optgroup>`／分組標題呈現每個供應商（環境變數 `env-N` 與面板供應商）各自的聊天模型，沒有內建組；選取值為 `provider_id + model_id`。前端不再內建任何模型清單（`MODELS` 只用於舊的瀏覽器保存 Key 模式）。
+- 供應商設定頁：聊天模型與嵌入模型分兩個欄位；環境變數供應商以「（環境變數）」標示，欄位唯讀、儲存與刪除停用，並顯示「由環境變數管理」。
 
 ## 6. 從 D1 遷移
 

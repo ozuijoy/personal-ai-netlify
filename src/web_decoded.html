@@ -368,7 +368,6 @@
     .btn-danger { border-color: rgba(248,113,113,0.4); color: var(--red); }
     .btn-danger:hover { background: rgba(248,113,113,0.1); }
     .plan-badge.ent { background: rgba(245,158,11,0.16); border-color: rgba(245,158,11,0.45); color: #fbbf24; }
-    .plan-badge.byok { background: color-mix(in srgb, var(--blue) 14%, transparent); border-color: color-mix(in srgb, var(--blue) 40%, transparent); color: var(--blue); }
     .modal-header .modal-close-btn {
       width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center;
       justify-content: center; line-height: 1; flex-shrink: 0;
@@ -1532,7 +1531,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
         <div id="pane-providers" class="settings-pane">
           <div class="settings-section-title">供應商</div>
           <p class="settings-section-desc">連線到任何 OpenAI 相容的 <code>/chat/completions</code> 服務。API Key 在伺服器端加密保存，不會回傳到瀏覽器；自建模型可以不填 Key。</p>
-          <p class="settings-hint" id="server-default-hint">若部署設定了 <code>GROQ_API_KEY</code>，未新增供應商時會使用伺服器預設 Groq。</p>
+          <p class="settings-hint" id="server-default-hint">沒有內建供應商：可在下方新增，或由部署者用 <code>PROVIDER_N_*</code> 環境變數設定（唯讀顯示）。新增後請到「一般」選擇預設模型。</p>
+          <p class="settings-hint" id="provider-env-errors" style="display:none;color:var(--red)"></p>
           <div class="form-group">
             <label class="form-label">使用中的供應商</label>
             <div style="display:flex;gap:6px">
@@ -1543,20 +1543,25 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
           <div class="settings-card">
             <div class="settings-kv">
               <div class="settings-kv-label">名稱</div>
-              <div class="settings-kv-control"><input id="provider-name" class="form-input" type="text" maxlength="60" placeholder="Groq"></div>
+              <div class="settings-kv-control"><input id="provider-name" class="form-input" type="text" maxlength="60" placeholder="例如 OpenAI"></div>
             </div>
             <div class="settings-kv">
               <div class="settings-kv-label">Base URL</div>
-              <div class="settings-kv-control"><input id="provider-base" class="form-input" type="url" placeholder="https://api.groq.com/openai/v1" autocomplete="off"></div>
+              <div class="settings-kv-control"><input id="provider-base" class="form-input" type="url" placeholder="https://api.example.com/v1" autocomplete="off"></div>
             </div>
             <div class="settings-kv">
               <div class="settings-kv-label">API Key</div>
               <div class="settings-kv-control"><input id="provider-key" class="form-input" type="password" placeholder="sk-…（自建模型可留空）" autocomplete="off"><label class="settings-hint" style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="checkbox" id="provider-clear-key" disabled> 清除已儲存的 Key</label></div>
             </div>
             <div class="settings-kv">
-              <div class="settings-kv-label">模型（多個以逗號分隔）</div>
-              <div class="settings-kv-control"><input id="provider-model" class="form-input" type="text" list="provider-model-list" placeholder="openai/gpt-oss-120b" autocomplete="off"><datalist id="provider-model-list"></datalist></div>
+              <div class="settings-kv-label">聊天模型（多個以逗號分隔）</div>
+              <div class="settings-kv-control"><input id="provider-model" class="form-input" type="text" list="provider-model-list" placeholder="gpt-4o-mini" autocomplete="off"><datalist id="provider-model-list"></datalist></div>
             </div>
+            <div class="settings-kv">
+              <div class="settings-kv-label">嵌入模型（選填，多個以逗號分隔）</div>
+              <div class="settings-kv-control"><input id="provider-embed-models" class="form-input" type="text" list="provider-model-list" placeholder="text-embedding-3-small" autocomplete="off"></div>
+            </div>
+            <p id="provider-env-note" class="settings-hint" style="display:none"></p>
             <div class="settings-actions" style="display:flex;gap:6px;flex-wrap:wrap">
               <button type="button" id="provider-test-btn" class="topbar-action-btn">測試連線</button>
               <button type="button" id="provider-models-btn" class="topbar-action-btn">抓取模型</button>
@@ -1568,10 +1573,10 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
           <p class="settings-hint">只允許公開 HTTPS 位址。localhost、私有 IP、<code>.local</code>、<code>.internal</code> 會被拒絕。</p>
           <div class="settings-card" id="embed-card" style="margin-top:14px">
             <div class="form-label" style="margin-bottom:6px">語意檢索（嵌入模型）</div>
-            <p class="settings-hint" style="margin-top:0">選一個提供 <code>/embeddings</code> 的供應商（例如 OpenAI 的 text-embedding-3-small）。知識庫會同時用關鍵字與語意找段落；Groq 沒有嵌入 API。</p>
+            <p class="settings-hint" style="margin-top:0">選一個提供 <code>/embeddings</code> 的供應商（例如 OpenAI 的 text-embedding-3-small）。知識庫會同時用關鍵字與語意找段落。未設定時只用關鍵字檢索。</p>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               <select id="embed-provider" class="form-input" style="flex:1;min-width:140px"></select>
-              <input id="embed-model" class="form-input" style="flex:1;min-width:160px" type="text" placeholder="text-embedding-3-small" autocomplete="off">
+              <input id="embed-model" class="form-input" style="flex:1;min-width:160px" type="text" list="embed-model-list" placeholder="text-embedding-3-small" autocomplete="off"><datalist id="embed-model-list"></datalist>
             </div>
             <div class="settings-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
               <button type="button" id="embed-save-btn" class="topbar-action-btn primary">儲存並測試</button>
@@ -1588,7 +1593,6 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
             <label class="form-label" data-i18n="currentPlan">Plan actual</label>
             <div><span class="plan-badge" id="plan-current-badge">FREE</span></div>
           </div>
-          <p class="settings-hint" data-i18n="planHint">Free: 50.000 tokens/día. Enterprise: sin tope (cuentas propias). BYOK: clave Groq en el navegador, sin cuota.</p>
           <a class="topbar-action-btn" href="mailto:owner@personal-ai.workers.dev?subject=Personal%20AI%20Enterprise" style="text-decoration:none;width:fit-content" data-i18n="planContact">Contactar para Enterprise</a>
         </div>
 
@@ -1612,11 +1616,6 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
               <div class="ops-stat"><b id="ops-voice">—</b><span data-i18n="opsVoice">Voz</span></div>
               <div class="ops-stat"><b id="ops-ideas">—</b><span data-i18n="opsIdeas">Ideas</span></div>
             </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label" data-i18n="byok">Clave Groq (BYOK)</label>
-            <input type="password" id="user-groq-key" class="form-input" placeholder="gsk_…" autocomplete="off">
-            <span class="settings-hint" data-i18n="byokHint">Solo se guarda en este navegador.</span>
           </div>
         </div>
 
@@ -1810,8 +1809,6 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   var attachedFile = null;
   var currentUser = { name: 'Owner' };
   var authToken = 'cookie';
-  var serverDefaultProvider = null;
-  var serverDefaultModel = '';
   (function consumeSocialCallback() {
     try {
       var params = new URLSearchParams(location.search);
@@ -1872,21 +1869,19 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   var sidebarView = 'chats';
   var publishedArtifacts = [];
   var abortCtl = null;
-  var selectedModel = localStorage.getItem('ta_model') || 'openai/gpt-oss-120b';
-  if (selectedModel === 'qwen/qwen3.6-27b' || selectedModel === 'qwen/qwen3.6') {
-    selectedModel = 'qwen/qwen3.8-27b';
-    try { localStorage.setItem('ta_model', selectedModel); } catch(e) {}
-  }
-  var MODELS = [
-    { id: 'openai/gpt-oss-120b', name: 'GPT OSS 120B', desc: 'm120' },
-    { id: 'qwen/qwen3.8-27b', name: 'Qwen 3.8 27B', desc: 'm27' },
-    { id: 'openai/gpt-oss-20b', name: 'GPT OSS 20B', desc: 'm20' }
-  ];
+  // 沒有預設模型：使用者在設定選了才有（provider_id + model）
+  var selectedModel = localStorage.getItem('ta_model') || '';
+  try { localStorage.removeItem('ta_custom_key'); } catch(e) {} // 舊版瀏覽器 BYOK 欄位已移除
+  // 沒有內建模型：舊的瀏覽器模式只列使用者自己加的模型（ensureModel）。
+  var MODELS = [];
+  var NO_MODEL_MSG = '請先在設定中新增供應商並選擇模型';
   var PROVIDERS_KEY = 'ta_providers_v1';
   var PROVIDER_ACTIVE_KEY = 'ta_provider_active';
   // 伺服器模式（Netlify + Neon）：供應商與 Key 存在伺服器（Key 加密、不回傳），模型選單依供應商分組。
-  var SERVER_PROVIDERS = [];   // [{id, name, base_url, has_key, api_key_hint, models:[{model_id, display_name}]}]
-  var MODEL_GROUPS = [];       // [{provider:{id,name,builtin,has_key}, models:[{id,name}]}]
+  // 環境變數供應商（id env-N，source 'env'）唯讀：Key 只在伺服器環境變數，面板只顯示名稱、Base URL 與模型。
+  var SERVER_PROVIDERS = [];   // [{id, name, base_url, has_key, api_key_hint, source, readonly, models:[{model_id, display_name}], embed_models:[...]}]
+  var MODEL_GROUPS = [];       // [{provider:{id,name,source,readonly,has_key}, models:[{id,name}]}]（只有聊天模型）
+  var ENV_PROVIDER_ERRORS = []; // [{index, error}]：PROVIDER_N_* 設定錯誤
   var selectedProviderId = '';
   try { selectedProviderId = localStorage.getItem(PROVIDER_ACTIVE_KEY) || ''; } catch(e) {}
   function serverMode() { return !!(syncMeta && syncMeta.enabled); }
@@ -1898,20 +1893,14 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     }
     return null;
   }
-  function firstModel() {
-    for (var i = 0; i < MODEL_GROUPS.length; i++) if (MODEL_GROUPS[i].models.length) return { group: MODEL_GROUPS[i], model: MODEL_GROUPS[i].models[0] };
-    return null;
-  }
   async function loadServerProviders() {
     if (!serverMode()) return;
     var r = await storeFetch('GET', '/api/providers');
-    SERVER_PROVIDERS = (r.providers || []).filter(function(p) { return !p.builtin; });
+    SERVER_PROVIDERS = Array.isArray(r.providers) ? r.providers : [];
+    ENV_PROVIDER_ERRORS = Array.isArray(r.env_errors) ? r.env_errors : [];
     var g = await storeFetch('GET', '/api/models/grouped');
     MODEL_GROUPS = Array.isArray(g.groups) ? g.groups : [];
-    if (!findModel(selectedProviderId, selectedModel)) {
-      var f = firstModel();
-      if (f) setModel(f.group.provider.id + '|' + f.model.id);
-    }
+    // 不自動選模型：預設模型由使用者在設定中選擇
     refreshProviderSelect();
     renderModelPicker();
     fillDefaultModelSelect();
@@ -1920,7 +1909,9 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     if (serverMode()) {
       return SERVER_PROVIDERS.map(function(p) {
         return { id: p.id, name: p.name, baseUrl: p.base_url, apiKey: '', hasKey: !!p.has_key, keyHint: p.api_key_hint || '',
-          models: (p.models || []).map(function(m) { return m.model_id; }), model: p.models && p.models[0] ? p.models[0].model_id : '' };
+          readonly: !!p.readonly, source: p.source || 'db', note: p.note || '',
+          models: (p.models || []).map(function(m) { return m.model_id; }), model: p.models && p.models[0] ? p.models[0].model_id : '',
+          embedModels: (p.embed_models || []).map(function(m) { return m.model_id; }) };
       });
     }
     try {
@@ -1957,7 +1948,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   function providerFormValues() {
     var get = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
     var clr = document.getElementById('provider-clear-key');
-    return { name: get('provider-name'), baseUrl: get('provider-base'), apiKey: get('provider-key'), model: get('provider-model'), clearKey: !!(clr && clr.checked) };
+    return { name: get('provider-name'), baseUrl: get('provider-base'), apiKey: get('provider-key'), model: get('provider-model'), embedModels: get('provider-embed-models'), clearKey: !!(clr && clr.checked) };
   }
   function setProviderStatus(text, bad) {
     var el = document.getElementById('provider-status');
@@ -1976,11 +1967,24 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     set('provider-base', p ? p.baseUrl : '');
     set('provider-key', serverMode() ? '' : (p ? p.apiKey : ''));
     set('provider-model', p ? (serverMode() ? (p.models || []).join(', ') : p.model) : '');
+    set('provider-embed-models', p && serverMode() ? (p.embedModels || []).join(', ') : '');
+    var ro = !!(p && p.readonly);
+    ['provider-name', 'provider-base', 'provider-key', 'provider-model', 'provider-embed-models'].forEach(function(elId) {
+      var el = document.getElementById(elId); if (el) el.readOnly = ro;
+    });
+    ['provider-save-btn', 'provider-delete-btn'].forEach(function(elId) { var el = document.getElementById(elId); if (el) el.disabled = ro; });
+    var note = document.getElementById('provider-env-note');
+    if (note) { note.style.display = ro ? '' : 'none'; note.textContent = ro ? (p.note || '由環境變數管理') + '：要修改請到部署平台的 PROVIDER_N_* 環境變數，Key 不會傳到瀏覽器。' : ''; }
     var keyEl = document.getElementById('provider-key');
-    if (keyEl) keyEl.placeholder = serverMode() && p ? (p.hasKey ? ('已加密保存（' + p.keyHint + '），留空表示不變') : '未設定 Key（可留空）') : 'sk-…（自建模型可留空）';
+    if (keyEl) keyEl.placeholder = ro ? (p.hasKey ? '由環境變數提供' : '未設定 Key') : serverMode() && p ? (p.hasKey ? ('已加密保存（' + p.keyHint + '），留空表示不變') : '未設定 Key（可留空）') : 'sk-…（自建模型可留空）';
     var clr = document.getElementById('provider-clear-key');
-    if (clr) { clr.checked = false; clr.disabled = !(serverMode() && p && p.hasKey); }
-    setProviderStatus(p ? ('編輯中：' + (p.name || p.baseUrl)) : '新增供應商', false);
+    if (clr) { clr.checked = false; clr.disabled = ro || !(serverMode() && p && p.hasKey); }
+    setProviderStatus(ro ? ('由環境變數管理：' + (p.name || p.baseUrl)) : p ? ('編輯中：' + (p.name || p.baseUrl)) : '新增供應商', false);
+    var errEl = document.getElementById('provider-env-errors');
+    if (errEl) {
+      errEl.style.display = ENV_PROVIDER_ERRORS.length ? '' : 'none';
+      errEl.textContent = ENV_PROVIDER_ERRORS.length ? '環境變數供應商設定有誤（已略過）：' + ENV_PROVIDER_ERRORS.map(function(e) { return e.error; }).join('；') : '';
+    }
   }
   function refreshProviderSelect() {
     var sel = document.getElementById('provider-active-select');
@@ -1989,7 +1993,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     var keep = sel.value;
     var active = serverMode() ? selectedProviderId : (localStorage.getItem(PROVIDER_ACTIVE_KEY) || (list[0] && list[0].id) || '');
     sel.innerHTML = list.map(function(p) {
-      return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.name || p.baseUrl) + '</option>';
+      return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.name || p.baseUrl) + (p.readonly ? '（環境變數）' : '') + '</option>';
     }).join('') + '<option value="__new">＋ 新增供應商</option>';
     var want = list.some(function(p) { return p.id === keep; }) ? keep : active;
     sel.value = list.some(function(p) { return p.id === want; }) ? want : (list[0] ? list[0].id : '__new');
@@ -1997,15 +2001,19 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   }
   async function saveProvider() {
     var v = providerFormValues();
+    var editing = editingProviderId() ? providerById(editingProviderId()) : null;
+    if (editing && editing.readonly) { setProviderStatus('此供應商由環境變數管理，無法在這裡修改', true); return; }
     if (!v.name) v.name = '供應商';
     if (!/^https:\/\//i.test(v.baseUrl)) { setProviderStatus('Base URL 必須是 HTTPS', true); return; }
     try { new URL(v.baseUrl); } catch(e) { setProviderStatus('Base URL 格式不正確', true); return; }
     var models = parseModelList(v.model);
-    if (!models.length) { setProviderStatus('請填寫至少一個模型 ID（多個以逗號分隔）', true); return; }
+    var embedModels = serverMode() ? parseModelList(v.embedModels) : [];
+    if (!models.length && !embedModels.length) { setProviderStatus('請填寫至少一個聊天模型或嵌入模型 ID（多個以逗號分隔）', true); return; }
+    if (!serverMode() && !models.length) { setProviderStatus('請填寫至少一個模型 ID（多個以逗號分隔）', true); return; }
     // API Key 可以留空：自建模型或不需驗證的相容閘道。
     if (serverMode()) {
       var currentId = editingProviderId();
-      var body = { name: v.name, base_url: v.baseUrl.replace(/\/+$/, ''), models: models };
+      var body = { name: v.name, base_url: v.baseUrl.replace(/\/+$/, ''), models: models, embed_models: embedModels };
       if (v.apiKey) body.api_key = v.apiKey;
       else if (currentId && v.clearKey) { body.api_key = ''; body.clear_key = true; }
       setProviderStatus('儲存中…', false);
@@ -2016,7 +2024,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
         var sel = document.getElementById('provider-active-select');
         if (sel && saved) { sel.innerHTML += '<option value="' + escapeHtml(saved.id) + '"></option>'; sel.value = saved.id; }
         await loadServerProviders();
-        if (saved) setModel(saved.id + '|' + models[0]);
+        if (saved && models.length) setModel(saved.id + '|' + models[0]);
         var keyEl = document.getElementById('provider-key'); if (keyEl) keyEl.value = '';
         setProviderStatus('已儲存：' + v.name + (saved && saved.has_key ? '（Key 已加密）' : '（無 Key）'), false);
       } catch(e) { setProviderStatus(e && e.message ? e.message : '儲存失敗', true); }
@@ -2040,6 +2048,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   async function deleteProvider() {
     var id = editingProviderId();
     if (!id) { setProviderStatus('目前沒有可刪除的供應商', true); return; }
+    var target = providerById(id);
+    if (target && target.readonly) { setProviderStatus('此供應商由環境變數管理，無法刪除', true); return; }
     if (!confirm('刪除這個供應商設定？')) return;
     if (serverMode()) {
       try { await storeFetch('DELETE', '/api/providers/' + encodeURIComponent(id)); } catch(e) { setProviderStatus(e.message || '刪除失敗', true); return; }
@@ -2056,12 +2066,14 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   async function fetchProviderModels(apply) {
     var v = providerFormValues();
     var currentId = editingProviderId();
+    var current = currentId ? providerById(currentId) : null;
+    var ro = !!(current && current.readonly);
     if (!v.baseUrl) { setProviderStatus('請先填寫 Base URL', true); return; }
     setProviderStatus('正在連線…', false);
     try {
       var data;
-      if (serverMode() && currentId && !v.apiKey) {
-        // 已儲存的供應商：由伺服器解密 Key 後代為查詢，Key 不經過瀏覽器
+      if (serverMode() && currentId && (ro || !v.apiKey)) {
+        // 已儲存的供應商：由伺服器解密 Key（或讀環境變數 Key）後代為查詢，Key 不經過瀏覽器
         data = await storeFetch('POST', '/api/providers/' + encodeURIComponent(currentId) + '/discover', {});
       } else {
         var res = await fetch('/api/models', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseUrl: v.baseUrl, apiKey: v.apiKey }) });
@@ -2071,11 +2083,11 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var models = Array.isArray(data.models) ? data.models : [];
       var list = document.getElementById('provider-model-list');
       if (list) list.innerHTML = models.map(function(m) { return '<option value="' + escapeHtml(m) + '"></option>'; }).join('');
-      if (apply && models.length) {
+      if (apply && models.length && !ro) {
         var input = document.getElementById('provider-model');
         if (input) input.value = serverMode() ? models.slice(0, 50).join(', ') : models[0];
       }
-      setProviderStatus('連線成功，取得 ' + models.length + ' 個模型' + (apply && serverMode() && models.length ? '，可刪掉不需要的再儲存' : ''), false);
+      setProviderStatus('連線成功，取得 ' + models.length + ' 個模型' + (ro ? '（環境變數供應商的模型清單請改 PROVIDER_N_MODELS / PROVIDER_N_EMBED_MODELS）' : apply && serverMode() && models.length ? '，可刪掉不需要的再儲存' : ''), false);
     } catch(e) {
       setProviderStatus(e && e.message ? e.message : '連線失敗', true);
     }
@@ -2912,8 +2924,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   }
   function embedStatusText(st) {
     if (!st.vector_available) return '資料庫尚未啟用 pgvector（需套用 0002_vectors）。';
-    if (!st.configured) return '未使用：知識庫只用關鍵字檢索。' + (st.builtin ? '可改選「' + st.builtin.name + '」免費語意檢索。' : '');
-    return '已索引 ' + st.embedded + ' / ' + st.total + ' 段' + (st.pending ? '，' + st.pending + ' 段待處理' : '') + '（' + st.model + (st.dims ? '，' + st.dims + ' 維' : '') + (st.default ? '，預設' : '') + '）';
+    if (!st.configured) return '未使用：知識庫只用關鍵字檢索。要開啟語意檢索，請選擇供應商與嵌入模型後按「儲存並測試」。';
+    return '已索引 ' + st.embedded + ' / ' + st.total + ' 段' + (st.pending ? '，' + st.pending + ' 段待處理' : '') + '（' + st.model + (st.dims ? '，' + st.dims + ' 維' : '') + '）';
   }
   async function loadEmbeddingPane() {
     var card = document.getElementById('embed-card');
@@ -2924,17 +2936,24 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     var st;
     try { st = (await storeFetch('GET', '/api/embeddings/status')).status; }
     catch(e) { p5Status('embed-status', '讀取失敗：' + (e.message || ''), true); return; }
-    var opts = [];
-    if (st.builtin) opts.push({ id: st.builtin.id, name: st.builtin.name });
-    SERVER_PROVIDERS.forEach(function(p) { if (!p.builtin) opts.push({ id: p.id, name: p.name }); });
+    // 每個供應商（環境變數與面板）只列它的嵌入模型；聊天模型不出現在這裡。也可以自由輸入。
+    var opts = (Array.isArray(st.options) ? st.options : []).map(function(o) {
+      return { id: o.provider.id, name: o.provider.name + (o.provider.readonly ? '（環境變數）' : ''), models: o.models || [] };
+    });
     sel.innerHTML = '<option value="">不使用（只用關鍵字）</option>' + opts.map(function(p) {
       return '<option value="' + escapeHtml(p.id) + '"' + (st.provider_id === p.id ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>';
     }).join('');
-    // 選內建 Cloudflare 時自動帶入預設模型
-    sel.onchange = function() {
-      if (st.builtin && sel.value === st.builtin.id) document.getElementById('embed-model').value = st.builtin.model;
+    var fillEmbedModels = function(fillFirst) {
+      var o = null;
+      for (var i = 0; i < opts.length; i++) if (opts[i].id === sel.value) o = opts[i];
+      var dl = document.getElementById('embed-model-list');
+      if (dl) dl.innerHTML = (o ? o.models : []).map(function(m) { return '<option value="' + escapeHtml(m) + '"></option>'; }).join('');
+      var input = document.getElementById('embed-model');
+      if (fillFirst && input && o && o.models.length && o.models.indexOf(input.value) < 0) input.value = o.models[0];
     };
+    sel.onchange = function() { fillEmbedModels(true); };
     document.getElementById('embed-model').value = st.model || '';
+    fillEmbedModels(false);
     document.getElementById('embed-run-btn').disabled = !st.configured || !st.pending;
     p5Status('embed-status', embedStatusText(st), !st.vector_available);
   }
@@ -4360,7 +4379,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var customPrompt = localStorage.getItem('ta_custom_prompt') || '';
       var provider = activeProvider();
       var useServerProvider = serverMode() && !!selectedProviderId;
-      if (!provider && !useServerProvider && serverDefaultProvider === false) throw new Error('請先在設定中新增供應商，或設定 GROQ_API_KEY');
+      if (serverMode() ? (!useServerProvider || !selectedModel || (MODEL_GROUPS.length && !findModel(selectedProviderId, selectedModel))) : !provider) throw new Error(NO_MODEL_MSG);
       var headers = { 'Content-Type': 'application/json' };
       var snippets = [];
       if (localStorage.getItem('ta_use_docs') !== '0' && serverMode() && documents.length) {
@@ -4381,7 +4400,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var resolvedTz = (tzVal && tzVal !== 'auto') ? tzVal : (function() {
         try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Taipei'; } catch(e) { return 'Asia/Taipei'; }
       })();
-      var resolvedModel = useServerProvider ? selectedModel : provider ? (provider.model || selectedModel) : (serverDefaultModel || selectedModel);
+      var resolvedModel = useServerProvider ? selectedModel : (provider.model || selectedModel);
       var payload = {
           prompt: fullPrompt,
           model: resolvedModel,
@@ -4525,8 +4544,9 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var f = findModel(selectedProviderId, selectedModel);
       if (f) return { id: f.model.id, name: f.model.name, desc: f.group.provider.name };
     }
+    if (serverMode() || !selectedModel) return { id: '', name: '選擇模型', desc: '' };
     for (var i = 0; i < MODELS.length; i++) if (MODELS[i].id === selectedModel) return MODELS[i];
-    return { id: selectedModel, name: selectedModel || MODELS[0].name, desc: '' };
+    return { id: selectedModel, name: selectedModel, desc: '' };
   }
   function renderModelPicker() {
     var label = document.getElementById('model-picker-label');
@@ -4535,24 +4555,24 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     if (label) label.textContent = meta.name;
     if (!menu) return;
     if (MODEL_GROUPS.length) {
-      // 依供應商分組：內建 Groq 與每個自訂供應商各自一組
-      var descById = {}; MODELS.forEach(function(m) { descById[m.id] = m.desc; });
+      // 依供應商分組：每個環境變數供應商與設定面板供應商各自一組（沒有內建組）
       menu.innerHTML = MODEL_GROUPS.map(function(g) {
-        var head = '<div class="model-group-label" role="presentation">' + escapeHtml(g.provider.name) + (g.provider.has_key || g.provider.builtin ? '' : ' · 無 Key') + '</div>';
+        var head = '<div class="model-group-label" role="presentation">' + escapeHtml(g.provider.name) + (g.provider.has_key ? '' : ' · 無 Key') + '</div>';
         if (!g.models.length) return head + '<div class="model-option-desc model-group-empty">尚未設定模型</div>';
         return head + g.models.map(function(m) {
           var active = g.provider.id === selectedProviderId && m.id === selectedModel;
-          var desc = g.provider.builtin && descById[m.id] ? t(descById[m.id]) : (m.name !== m.id ? m.id : '');
+          var desc = m.name !== m.id ? m.id : '';
           return '<button type="button" class="model-option' + (active ? ' active' : '') + '" data-model="' + escapeHtml(g.provider.id + '|' + m.id) + '" role="option">' +
             '<div class="model-option-name">' + escapeHtml(m.name) + '</div>' + (desc ? '<div class="model-option-desc">' + escapeHtml(desc) + '</div>' : '') + '</button>';
         }).join('');
       }).join('');
       return;
     }
+    if (!MODELS.length) { menu.innerHTML = '<div class="model-option-desc model-group-empty">' + escapeHtml(NO_MODEL_MSG) + '</div>'; return; }
     menu.innerHTML = MODELS.map(function(m) {
-      return '<button type="button" class="model-option' + (m.id === selectedModel ? ' active' : '') + '" data-model="' + m.id + '" role="option">' +
-        '<div class="model-option-name">' + m.name + '</div>' +
-        '<div class="model-option-desc">' + t(m.desc) + '</div></button>';
+      return '<button type="button" class="model-option' + (m.id === selectedModel ? ' active' : '') + '" data-model="' + escapeHtml(m.id) + '" role="option">' +
+        '<div class="model-option-name">' + escapeHtml(m.name) + '</div>' +
+        (m.desc ? '<div class="model-option-desc">' + escapeHtml(m.desc) + '</div>' : '') + '</button>';
     }).join('');
   }
   function setModel(id) {
@@ -4576,7 +4596,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     var modelSel = document.getElementById('set-default-model');
     if (!modelSel) return;
     if (MODEL_GROUPS.length) {
-      modelSel.innerHTML = MODEL_GROUPS.filter(function(g) { return g.models.length; }).map(function(g) {
+      var hasSel = !!findModel(selectedProviderId, selectedModel);
+      modelSel.innerHTML = (hasSel ? '' : '<option value="" selected>— 請選擇模型 —</option>') + MODEL_GROUPS.filter(function(g) { return g.models.length; }).map(function(g) {
         return '<optgroup label="' + escapeHtml(g.provider.name) + '">' + g.models.map(function(m) {
           var v = g.provider.id + '|' + m.id;
           var sel = g.provider.id === selectedProviderId && m.id === selectedModel;
@@ -4585,6 +4606,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       }).join('');
       return;
     }
+    if (!MODELS.length) { modelSel.innerHTML = '<option value="">尚未設定供應商</option>'; return; }
     modelSel.innerHTML = MODELS.map(function(m) {
       return '<option value="' + escapeHtml(m.id) + '"' + (m.id === selectedModel ? ' selected' : '') + '>' + escapeHtml(m.name) + '</option>';
     }).join('');
@@ -5465,8 +5487,6 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   async function transcribeBlob(blob) {
     var headers = {};
     if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
-    var userApiKey = localStorage.getItem('ta_custom_key') || '';
-    if (userApiKey) headers['x-groq-user-key'] = userApiKey;
     var fd = new FormData();
     fd.append('file', blob, 'voice.webm');
     var lang = (window.TA && TA.lang) ? TA.lang() : 'es';
@@ -5568,7 +5588,6 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     });
   }
   function planLabel() {
-    if (localStorage.getItem('ta_custom_key')) return 'BYOK';
     if (currentUser && currentUser.tier === 'enterprise') return 'ENTERPRISE';
     return 'FREE';
   }
@@ -5625,9 +5644,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   }
   function openSettingsModal(tab) {
     if (typeof tab !== 'string') tab = 'pane-general';
-    var kEl = document.getElementById('user-groq-key');
     var pEl = document.getElementById('custom-system-prompt');
-    if (kEl) kEl.value = localStorage.getItem('ta_custom_key') || '';
     if (pEl) pEl.value = localStorage.getItem('ta_custom_prompt') || '';
     var enterEl = document.getElementById('set-enter-send');
     var autoEl = document.getElementById('set-auto-search');
@@ -5697,11 +5714,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     openModal('modal-settings');
   }
   async function saveSettings() {
-    var kEl = document.getElementById('user-groq-key');
     var pEl = document.getElementById('custom-system-prompt');
-    var k = kEl ? kEl.value.trim() : '';
     var p = pEl ? pEl.value.trim() : '';
-    if (k) localStorage.setItem('ta_custom_key', k); else localStorage.removeItem('ta_custom_key');
     if (p) localStorage.setItem('ta_custom_prompt', p); else localStorage.removeItem('ta_custom_prompt');
     var enterEl = document.getElementById('set-enter-send');
     var autoEl = document.getElementById('set-auto-search');
@@ -5799,16 +5813,9 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var navOut = document.getElementById('nav-logout-btn');
       if (navOut) navOut.hidden = false;
     } else {
-      var byok = localStorage.getItem('ta_custom_key');
-      if (byok) {
-        if (nameEl) nameEl.textContent = 'BYOK';
-        if (tierEl) tierEl.textContent = t('unlimited');
-        if (topText) topText.textContent = 'BYOK';
-      } else {
-        if (nameEl) nameEl.textContent = t('guest');
-        if (tierEl) tierEl.textContent = t('tokensDay');
-        if (topText) topText.textContent = t('access');
-      }
+      if (nameEl) nameEl.textContent = t('guest');
+      if (tierEl) tierEl.textContent = t('tokensDay');
+      if (topText) topText.textContent = t('access');
       if (letter) letter.textContent = 'T';
       if (topLetter) topLetter.hidden = true;
       if (topBtn) { topBtn.classList.add('primary'); topBtn.classList.remove('topbar-user-btn'); }
@@ -5979,11 +5986,6 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
             syncMeta.enabled = !!(d.config && d.config.storage);
             serverFilesEnabled = !!(d.config && d.config.files);
             serverMaxUploadMb = (d.config && d.config.max_upload_mb) || 25;
-            serverDefaultProvider = !!(d.config && d.config.defaultProvider);
-            serverDefaultModel = (d.config && d.config.defaultModel) || '';
-            if (!activeProvider() && serverDefaultModel) setModel(serverDefaultModel);
-            var defaultHint = document.getElementById('server-default-hint');
-            if (defaultHint) defaultHint.textContent = serverDefaultProvider ? ('已啟用伺服器預設 Groq（' + (serverDefaultModel || 'openai/gpt-oss-120b') + '）；仍可在下方新增自訂供應商。') : '目前未設定伺服器預設 Groq；請在下方新增 OpenAI 相容供應商。';
             updateUserUI();
             setArtifactDest(artifactDest, false);
             syncBootstrap();

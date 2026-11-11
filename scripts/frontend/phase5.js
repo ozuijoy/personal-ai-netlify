@@ -8,8 +8,8 @@
   }
   function embedStatusText(st) {
     if (!st.vector_available) return '資料庫尚未啟用 pgvector（需套用 0002_vectors）。';
-    if (!st.configured) return '未使用：知識庫只用關鍵字檢索。' + (st.builtin ? '可改選「' + st.builtin.name + '」免費語意檢索。' : '');
-    return '已索引 ' + st.embedded + ' / ' + st.total + ' 段' + (st.pending ? '，' + st.pending + ' 段待處理' : '') + '（' + st.model + (st.dims ? '，' + st.dims + ' 維' : '') + (st.default ? '，預設' : '') + '）';
+    if (!st.configured) return '未使用：知識庫只用關鍵字檢索。要開啟語意檢索，請選擇供應商與嵌入模型後按「儲存並測試」。';
+    return '已索引 ' + st.embedded + ' / ' + st.total + ' 段' + (st.pending ? '，' + st.pending + ' 段待處理' : '') + '（' + st.model + (st.dims ? '，' + st.dims + ' 維' : '') + '）';
   }
   async function loadEmbeddingPane() {
     var card = document.getElementById('embed-card');
@@ -20,17 +20,24 @@
     var st;
     try { st = (await storeFetch('GET', '/api/embeddings/status')).status; }
     catch(e) { p5Status('embed-status', '讀取失敗：' + (e.message || ''), true); return; }
-    var opts = [];
-    if (st.builtin) opts.push({ id: st.builtin.id, name: st.builtin.name });
-    SERVER_PROVIDERS.forEach(function(p) { if (!p.builtin) opts.push({ id: p.id, name: p.name }); });
+    // 每個供應商（環境變數與面板）只列它的嵌入模型；聊天模型不出現在這裡。也可以自由輸入。
+    var opts = (Array.isArray(st.options) ? st.options : []).map(function(o) {
+      return { id: o.provider.id, name: o.provider.name + (o.provider.readonly ? '（環境變數）' : ''), models: o.models || [] };
+    });
     sel.innerHTML = '<option value="">不使用（只用關鍵字）</option>' + opts.map(function(p) {
       return '<option value="' + escapeHtml(p.id) + '"' + (st.provider_id === p.id ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>';
     }).join('');
-    // 選內建 Cloudflare 時自動帶入預設模型
-    sel.onchange = function() {
-      if (st.builtin && sel.value === st.builtin.id) document.getElementById('embed-model').value = st.builtin.model;
+    var fillEmbedModels = function(fillFirst) {
+      var o = null;
+      for (var i = 0; i < opts.length; i++) if (opts[i].id === sel.value) o = opts[i];
+      var dl = document.getElementById('embed-model-list');
+      if (dl) dl.innerHTML = (o ? o.models : []).map(function(m) { return '<option value="' + escapeHtml(m) + '"></option>'; }).join('');
+      var input = document.getElementById('embed-model');
+      if (fillFirst && input && o && o.models.length && o.models.indexOf(input.value) < 0) input.value = o.models[0];
     };
+    sel.onchange = function() { fillEmbedModels(true); };
     document.getElementById('embed-model').value = st.model || '';
+    fillEmbedModels(false);
     document.getElementById('embed-run-btn').disabled = !st.configured || !st.pending;
     p5Status('embed-status', embedStatusText(st), !st.vector_available);
   }

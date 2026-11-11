@@ -17,26 +17,20 @@ const provider = {
   model: 'test-model',
 }
 
-test('chat uses server Groq when no browser provider is configured', async () => {
+test('chat has no built-in provider: without one it asks the user to add one and pick a model', async () => {
   const original = globalThis.fetch
-  let captured = null
-  globalThis.fetch = async (url, init) => {
-    captured = { url, body: JSON.parse(init.body) }
-    return new Response('data: {"choices":[{"delta":{"content":"預設"}}]}\n\ndata: [DONE]\n\n', {
-      status: 200,
-      headers: { 'content-type': 'text/event-stream' },
-    })
-  }
+  let called = false
+  globalThis.fetch = async () => { called = true; return new Response('') }
   try {
+    // 舊的 GROQ_* 變數不再有任何作用
     const response = await handleChat(chatRequest({ prompt: '你好' }), {
       GROQ_API_KEY: 'gsk_12345678',
       GROQ_BASE_URL: 'https://groq.example/v1',
       GROQ_MODEL: 'groq-test-model',
     })
-    assert.equal(response.status, 200)
-    assert.match(captured.url, /^https:\/\/groq\.example\/v1\/chat\/completions$/)
-    assert.equal(captured.body.model, 'groq-test-model')
-    assert.match(await response.text(), /預設/)
+    assert.equal(response.status, 400)
+    assert.equal((await response.json()).error, '請先在設定中新增供應商並選擇模型')
+    assert.equal(called, false)
   } finally {
     globalThis.fetch = original
   }
@@ -58,7 +52,7 @@ test('chat proxies raw SSE and sends OpenAI-style messages', async () => {
       provider,
       custom_prompt: '你是測試助理',
       chat_history: [{ role: 'user', content: '先前訊息' }, { role: 'ai', content: '先前回覆' }],
-    }), { GROQ_API_KEY: 'gsk_12345678' })
+    }), {})
     assert.equal(response.status, 200)
     assert.match(captured.url, /\/chat\/completions$/)
     assert.equal(captured.body.model, 'test-model')

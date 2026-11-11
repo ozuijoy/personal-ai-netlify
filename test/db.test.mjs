@@ -26,6 +26,7 @@ const baseEnv = {
 async function makeDb() {
   const pg = new PGlite({ extensions: { pg_trgm } })
   await pg.exec(fs.readFileSync(new URL('../db/migrations/0001_init.sql', import.meta.url), 'utf8'))
+  await pg.exec(fs.readFileSync(new URL('../db/migrations/0003_model_kinds.sql', import.meta.url), 'utf8'))
   return {
     pg,
     query: async (text, params = []) => (await pg.query(text, params)).rows,
@@ -73,12 +74,17 @@ test('providers: encrypted key never returned, empty-key provider allowed, model
   assert.equal(cred.apiKey, 'sk-test-0000-9999')
   assert.equal((await providerCredentials(db, env, local.id)).apiKey, '')
 
-  const groups = await groupedModels(db, { ...env, GROQ_API_KEY: 'gsk_x' })
-  assert.equal(groups[0].provider.id, 'builtin-groq')
-  assert.equal(groups[0].models.length, 3)
+  // 沒有內建組：舊 GROQ_API_KEY 無作用；環境變數供應商（有聊天模型才出現）在前
+  assert.deepEqual((await groupedModels(db, { ...env, GROQ_API_KEY: 'gsk_x' })).map((g) => g.provider.name), ['OpenAI', '自建 vLLM'])
+  const envWith = { ...env, PROVIDER_2_NAME: 'Env Chat', PROVIDER_2_BASE_URL: 'https://env.example.com/v1', PROVIDER_2_MODELS: 'env-m',
+    PROVIDER_5_NAME: 'Env Embed only', PROVIDER_5_BASE_URL: 'https://emb.example.com/v1', PROVIDER_5_EMBED_MODELS: 'emb-1' }
+  const groups = await groupedModels(db, envWith)
   const names = groups.map((g) => g.provider.name)
-  assert.deepEqual(names.slice(1), ['OpenAI', '自建 vLLM'])
+  assert.deepEqual(names, ['Env Chat', 'OpenAI', '自建 vLLM'])
+  assert.equal(groups[0].provider.id, 'env-2')
+  assert.equal(groups[0].provider.readonly, true)
   assert.deepEqual(groups[2].models, [{ id: 'qwen-local', name: 'Qwen 本地' }])
+  assert.equal((await listProviders(db, envWith)).find((p) => p.id === 'env-5').embed_models[0].model_id, 'emb-1')
 
   // 未帶 api_key 的更新保留原 Key；clear_key 清除
   await updateProvider(db, env, p.id, { name: 'OpenAI 2' })

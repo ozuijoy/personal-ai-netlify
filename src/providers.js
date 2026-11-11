@@ -2,8 +2,7 @@ import { errorJson } from './config.js'
 
 export const DEFAULT_CHAT_PATH = '/chat/completions'
 export const DEFAULT_MODELS_PATH = '/models'
-export const DEFAULT_GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
-export const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b'
+export const NO_PROVIDER_MESSAGE = '請先在設定中新增供應商並選擇模型'
 
 export function normalizeBaseUrl(input) {
   const raw = String(input || '').trim()
@@ -55,27 +54,13 @@ export function modelsUrl(baseUrl) {
   return `${base}/v1/models`
 }
 
-export function providerFromBody(body, env = {}) {
+// 舊前端（瀏覽器保存 Key 的過渡模式）在請求內帶 provider / baseUrl。沒有任何內建供應商可退回。
+export function providerFromBody(body) {
   const p = body && typeof body.provider === 'object' ? body.provider : null
   const baseUrl = p ? p.baseUrl : (body && body.baseUrl)
   const apiKey = p ? p.apiKey : (body && body.apiKey)
   const model = p ? p.model : (body && body.model)
-  const explicit = !!(p || baseUrl || apiKey)
-
-  if (!explicit) {
-    // Single-owner deployments may set a server-side Groq key. This is only a
-    // fallback: an explicitly configured browser provider always wins.
-    if (env.GROQ_API_KEY) {
-      return {
-        baseUrl: normalizeBaseUrl(env.GROQ_BASE_URL || DEFAULT_GROQ_BASE_URL),
-        apiKey: String(env.GROQ_API_KEY),
-        model: String(model || env.GROQ_MODEL || DEFAULT_GROQ_MODEL).trim().slice(0, 200),
-      }
-    }
-    throw new Error('請先在設定中新增供應商，或設定 GROQ_API_KEY')
-  }
-
-  if (!baseUrl) throw new Error('請先在設定中新增供應商')
+  if (!baseUrl) throw new Error(NO_PROVIDER_MESSAGE)
   // 允許空 Key：自建模型 / 不需驗證的相容閘道。有填才做基本檢查。
   const key = apiKey == null ? '' : String(apiKey).trim()
   if (key && (key.length > 4096 || /[\r\n]/.test(key))) throw new Error('供應商 API Key 格式不正確')
@@ -97,47 +82,92 @@ export function upstreamHeaders(apiKey, extra = {}) {
   return headers
 }
 
-// 內建 Groq：只有伺服器設定 GROQ_API_KEY 時才出現，Key 不進資料庫。
-export const BUILTIN_GROQ_ID = 'builtin-groq'
-export const BUILTIN_GROQ_MODELS = [
-  { model_id: 'openai/gpt-oss-120b', display_name: 'GPT OSS 120B' },
-  { model_id: 'qwen/qwen3.8-27b', display_name: 'Qwen 3.8 27B' },
-  { model_id: 'openai/gpt-oss-20b', display_name: 'GPT OSS 20B' },
-]
+// ── 環境變數供應商 ─────────────────────────────────────────
+// PROVIDER_N_NAME / _BASE_URL（必填）、_API_KEY / _MODELS / _EMBED_MODELS（選填），N = 1..20，
+// 全部掃描（中間有空號也繼續）。id 為 env-N。Key 只從環境變數讀取：不進資料庫、不回傳瀏覽器。
+export const ENV_PROVIDER_MAX = 20
+const ENV_ID_RE = /^env-(\d{1,2})$/
 
-export function builtinProvider(env = {}) {
-  if (!env.GROQ_API_KEY) return null
-  return {
-    id: BUILTIN_GROQ_ID,
-    name: 'Groq（內建）',
-    builtin: true,
-    base_url: normalizeBaseUrl(env.GROQ_BASE_URL || DEFAULT_GROQ_BASE_URL),
-    has_key: true,
-    api_key_hint: '伺服器設定',
-    models: BUILTIN_GROQ_MODELS.map((m, i) => ({ ...m, enabled: true, sort_order: i })),
-  }
+export function isEnvProviderId(id) {
+  return typeof id === 'string' && /^env-/i.test(id)
 }
 
-// 內建嵌入模型：Cloudflare Workers AI（OpenAI 相容 /v1/embeddings）。
-// 只有伺服器設定 CLOUDFLARE_ACCOUNT_ID 與 CLOUDFLARE_AI_TOKEN 時才出現，Token 不進資料庫。
-// 免費額度：每帳號每天 10,000 Neurons；bge-m3 為 1,075 Neurons／百萬 input tokens
-// （developers.cloudflare.com/workers-ai/platform/pricing/）。
-export const BUILTIN_EMBED_ID = 'builtin-cloudflare-embed'
-export const DEFAULT_EMBED_MODEL = '@cf/baai/bge-m3'
-export const KNOWN_EMBED_DIMS = { '@cf/baai/bge-m3': 1024 }
+export function parseModelIds(value) {
+  const seen = new Set()
+  const out = []
+  for (const raw of String(value || '').split(',')) {
+    const id = raw.trim()
+    if (!id || id.length > 200 || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+    if (out.length >= 500) break
+  }
+  return out
+}
 
-export function builtinEmbeddingProvider(env = {}) {
-  const account = String(env.CLOUDFLARE_ACCOUNT_ID || '').trim()
-  if (!account || !env.CLOUDFLARE_AI_TOKEN) return null
-  if (!/^[a-f0-9]{32}$/i.test(account)) return null
-  const model = String(env.EMBEDDING_MODEL || DEFAULT_EMBED_MODEL).trim().slice(0, 200)
+/**
+ * 掃描 PROVIDER_1_* … PROVIDER_20_*。回傳 {providers, errors}；
+ * providers 含 api_key（僅供伺服器內部使用），errors 只含編號與原因（不含 Key）。
+ */
+export function scanEnvProviders(env = {}) {
+  const providers = []
+  const errors = []
+  for (let n = 1; n <= ENV_PROVIDER_MAX; n++) {
+    const get = (k) => (env[`PROVIDER_${n}_${k}`] == null ? '' : String(env[`PROVIDER_${n}_${k}`]).trim())
+    const name = get('NAME').slice(0, 100)
+    const rawBase = get('BASE_URL')
+    if (!name && !rawBase) continue
+    if (!name) { errors.push({ index: n, error: `PROVIDER_${n}_NAME 未設定` }); continue }
+    if (!rawBase) { errors.push({ index: n, error: `PROVIDER_${n}_BASE_URL 未設定` }); continue }
+    let baseUrl
+    try { baseUrl = normalizeBaseUrl(rawBase) } catch (err) {
+      errors.push({ index: n, error: `PROVIDER_${n}_BASE_URL：${err.message}` })
+      continue
+    }
+    const apiKey = get('API_KEY')
+    if (apiKey && (apiKey.length > 4096 || /[\r\n]/.test(apiKey))) {
+      errors.push({ index: n, error: `PROVIDER_${n}_API_KEY 格式不正確` })
+      continue
+    }
+    providers.push({
+      id: `env-${n}`,
+      index: n,
+      name,
+      base_url: baseUrl,
+      api_key: apiKey,
+      models: parseModelIds(get('MODELS')),
+      embed_models: parseModelIds(get('EMBED_MODELS')),
+    })
+  }
+  return { providers, errors }
+}
+
+export function envProviders(env = {}) {
+  return scanEnvProviders(env).providers
+}
+
+export function envProvider(env, id) {
+  const m = ENV_ID_RE.exec(String(id || ''))
+  if (!m) return null
+  return envProviders(env).find((p) => p.index === Number(m[1])) || null
+}
+
+/** 給瀏覽器看的環境變數供應商：唯讀、沒有 Key 也沒有 Key 提示。 */
+export function publicEnvProvider(p) {
+  const list = (ids) => ids.map((id, i) => ({ model_id: id, display_name: null, enabled: true, sort_order: i }))
   return {
-    id: BUILTIN_EMBED_ID,
-    name: 'Cloudflare Workers AI（內建）',
-    builtin: true,
-    base_url: normalizeBaseUrl(`https://api.cloudflare.com/client/v4/accounts/${account}/ai/v1`),
-    model,
-    dims: KNOWN_EMBED_DIMS[model] || null,
+    id: p.id,
+    name: p.name,
+    base_url: p.base_url,
+    has_key: !!p.api_key,
+    api_key_hint: '',
+    enabled: true,
+    sort_order: p.index,
+    source: 'env',
+    readonly: true,
+    note: '由環境變數管理',
+    models: list(p.models),
+    embed_models: list(p.embed_models),
   }
 }
 

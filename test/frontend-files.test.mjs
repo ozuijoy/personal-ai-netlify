@@ -25,6 +25,7 @@ async function waitFor(fn, ms = 15000) {
 test('frontend files: upload PDF (CJK) / DOCX / scanned PDF, knowledge search, delete', async () => {
   const pg = new PGlite({ extensions: { pg_trgm } })
   await pg.exec(read('db/migrations/0001_init.sql'))
+  await pg.exec(read('db/migrations/0003_model_kinds.sql'))
   const db = {
     query: async (text, params = []) => (await pg.query(text, params)).rows,
     tx: (st) => pg.transaction(async (t) => { const out = []; for (const [q, p] of st) out.push((await t.query(q, p || [])).rows); return out }),

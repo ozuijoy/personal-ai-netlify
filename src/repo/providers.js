@@ -1,11 +1,21 @@
 import { decryptSecret, encryptSecret, keyHint, keyring } from '../crypto.js'
-import { BUILTIN_EMBED_ID, BUILTIN_GROQ_ID, builtinEmbeddingProvider, builtinProvider, normalizeBaseUrl, providerFromBody } from '../providers.js'
+import {
+  NO_PROVIDER_MESSAGE, envProvider, envProviders, isEnvProviderId, normalizeBaseUrl, providerFromBody, publicEnvProvider, scanEnvProviders,
+} from '../providers.js'
 
 export const OWNER = 'owner'
+export const MODEL_KINDS = ['chat', 'embed']
+
+function envReadonlyError() {
+  const err = new Error('此供應商由環境變數管理，請到部署平台修改 PROVIDER_N_* 變數')
+  err.status = 403
+  err.code = 'env_provider_readonly'
+  return err
+}
 
 const aadFor = (ownerId, id) => `provider:${ownerId}:${id}`
 
-function publicProvider(row, models = []) {
+function publicProvider(row, models = [], embedModels = []) {
   return {
     id: row.id,
     name: row.name,
@@ -14,10 +24,12 @@ function publicProvider(row, models = []) {
     api_key_hint: row.api_key_hint || '',
     enabled: row.enabled,
     sort_order: row.sort_order,
-    builtin: false,
+    source: 'db',
+    readonly: false,
     created_at: row.created_at,
     updated_at: row.updated_at,
     models,
+    embed_models: embedModels,
   }
 }
 
@@ -43,61 +55,85 @@ function cleanModels(list) {
   return out
 }
 
-export async function listProviders(db, env, ownerId = OWNER) {
+/** 資料庫（設定面板）供應商；不含環境變數供應商。 */
+export async function listDbProviders(db, ownerId = OWNER) {
   const rows = await db.query(
     `SELECT * FROM providers WHERE owner_id = $1 AND deleted_at IS NULL ORDER BY sort_order, created_at`,
     [ownerId],
   )
   const models = rows.length
     ? await db.query(
-      `SELECT provider_id, model_id, display_name, enabled, sort_order FROM provider_models
+      `SELECT provider_id, kind, model_id, display_name, enabled, sort_order FROM provider_models
         WHERE provider_id = ANY($1::text[]) ORDER BY sort_order, model_id`,
       [rows.map((r) => r.id)],
     )
     : []
-  const byProvider = new Map()
+  const chat = new Map()
+  const embed = new Map()
   for (const m of models) {
-    if (!byProvider.has(m.provider_id)) byProvider.set(m.provider_id, [])
-    byProvider.get(m.provider_id).push({ model_id: m.model_id, display_name: m.display_name, enabled: m.enabled, sort_order: m.sort_order })
+    const map = m.kind === 'embed' ? embed : chat
+    if (!map.has(m.provider_id)) map.set(m.provider_id, [])
+    map.get(m.provider_id).push({ model_id: m.model_id, display_name: m.display_name, enabled: m.enabled, sort_order: m.sort_order })
   }
-  const list = rows.map((r) => publicProvider(r, byProvider.get(r.id) || []))
-  const builtin = builtinProvider(env)
-  return builtin ? [builtin, ...list] : list
+  return rows.map((r) => publicProvider(r, chat.get(r.id) || [], embed.get(r.id) || []))
 }
 
-/** 模型選單：依供應商分組，只列啟用的供應商與模型。 */
+/** 全部供應商：環境變數（env-N，唯讀）在前，資料庫供應商在後。 */
+export async function listProviders(db, env, ownerId = OWNER) {
+  const fromEnv = envProviders(env).map(publicEnvProvider)
+  const fromDb = db ? await listDbProviders(db, ownerId) : []
+  return [...fromEnv, ...fromDb]
+}
+
+/** 環境變數設定錯誤（只含編號與原因，不含 Key），顯示在設定面板。 */
+export function envProviderErrors(env) {
+  return scanEnvProviders(env).errors
+}
+
+/** 聊天模型選單：依供應商分組，只列啟用的供應商與「聊天」模型（嵌入模型不出現）。 */
 export async function groupedModels(db, env, ownerId = OWNER) {
-  const providers = db ? await listProviders(db, env, ownerId) : (builtinProvider(env) ? [builtinProvider(env)] : [])
+  const providers = await listProviders(db, env, ownerId)
+  return providers
+    .filter((p) => p.enabled !== false)
+    // 只有嵌入模型的供應商（例如只設 PROVIDER_N_EMBED_MODELS）不出現在聊天選單
+    .filter((p) => p.models.length || (p.source === 'db' && !p.embed_models.length))
+    .map((p) => ({
+      provider: { id: p.id, name: p.name, source: p.source, readonly: !!p.readonly, has_key: p.has_key },
+      models: (p.models || []).filter((m) => m.enabled !== false).map((m) => ({ id: m.model_id, name: m.display_name || m.model_id })),
+    }))
+}
+
+/** 嵌入模型選項：每個供應商只列「嵌入」模型（聊天模型不出現）；前端另可自由輸入。 */
+export async function embeddingModelOptions(db, env, ownerId = OWNER) {
+  const providers = await listProviders(db, env, ownerId)
   return providers
     .filter((p) => p.enabled !== false)
     .map((p) => ({
-      provider: { id: p.id, name: p.name, builtin: !!p.builtin, has_key: p.has_key },
-      models: (p.models || []).filter((m) => m.enabled !== false).map((m) => ({ id: m.model_id, name: m.display_name || m.model_id })),
+      provider: { id: p.id, name: p.name, source: p.source, readonly: !!p.readonly },
+      models: (p.embed_models || []).filter((m) => m.enabled !== false).map((m) => m.model_id),
     }))
 }
 
 export async function createProvider(db, env, input, ownerId = OWNER) {
   const baseUrl = normalizeBaseUrl(input.base_url || input.baseUrl)
-  const id = input.id && /^[A-Za-z0-9_-]{1,64}$/.test(input.id) && input.id !== BUILTIN_GROQ_ID ? input.id : crypto.randomUUID()
+  const id = input.id && /^[A-Za-z0-9_-]{1,64}$/.test(input.id) && !isEnvProviderId(input.id) ? input.id : crypto.randomUUID()
   const apiKey = String(input.api_key ?? input.apiKey ?? '').trim()
   let enc = null
   if (apiKey) enc = await encryptSecret(apiKey, aadFor(ownerId, id), env)
   const models = cleanModels(input.models || (input.model ? [input.model] : []))
+  const embedModels = cleanModels(input.embed_models || [])
   const statements = [[
     `INSERT INTO providers (id, owner_id, name, base_url, api_key_enc, api_key_hint, key_version, sort_order)
      VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE((SELECT max(sort_order) + 1 FROM providers WHERE owner_id = $2), 0))`,
     [id, ownerId, cleanName(input.name), baseUrl, enc ? enc.value : null, apiKey ? keyHint(apiKey) : null, enc ? enc.version : null],
   ]]
-  models.forEach((m, i) => statements.push([
-    `INSERT INTO provider_models (provider_id, model_id, display_name, enabled, sort_order) VALUES ($1, $2, $3, $4, $5)`,
-    [id, m.model_id, m.display_name, m.enabled, i],
-  ]))
+  statements.push(...insertModelStatements(id, models, 'chat'), ...insertModelStatements(id, embedModels, 'embed'))
   await db.tx(statements)
   return getProvider(db, env, id, ownerId)
 }
 
 export async function getProvider(db, env, id, ownerId = OWNER) {
-  const list = await listProviders(db, env, ownerId)
+  const list = isEnvProviderId(id) ? envProviders(env).map(publicEnvProvider) : await listDbProviders(db, ownerId)
   return list.find((p) => p.id === id) || null
 }
 
@@ -108,7 +144,7 @@ export async function getProvider(db, env, id, ownerId = OWNER) {
  *   - 非空字串 → 重新加密覆蓋
  */
 export async function updateProvider(db, env, id, input, ownerId = OWNER) {
-  if (id === BUILTIN_GROQ_ID) throw new Error('內建供應商由伺服器環境變數管理')
+  if (isEnvProviderId(id)) throw envReadonlyError()
   const row = (await db.query(`SELECT * FROM providers WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL`, [id, ownerId]))[0]
   if (!row) return null
   const sets = []
@@ -130,29 +166,42 @@ export async function updateProvider(db, env, id, input, ownerId = OWNER) {
   }
   const statements = []
   if (sets.length) statements.push([`UPDATE providers SET ${sets.join(', ')}, updated_at = now() WHERE id = $1 AND owner_id = $2`, params])
-  if (Array.isArray(input.models)) statements.push(...modelStatements(id, input.models))
+  if (Array.isArray(input.models)) statements.push(...modelStatements(id, input.models, 'chat'))
+  if (Array.isArray(input.embed_models)) statements.push(...modelStatements(id, input.embed_models, 'embed'))
   if (statements.length) await db.tx(statements)
   return getProvider(db, env, id, ownerId)
 }
 
-function modelStatements(providerId, list) {
-  const models = cleanModels(list)
-  const st = [[`DELETE FROM provider_models WHERE provider_id = $1`, [providerId]]]
-  models.forEach((m, i) => st.push([
-    `INSERT INTO provider_models (provider_id, model_id, display_name, enabled, sort_order) VALUES ($1, $2, $3, $4, $5)`,
-    [providerId, m.model_id, m.display_name, m.enabled, i],
-  ]))
-  return st
+function insertModelStatements(providerId, models, kind) {
+  return models.map((m, i) => [
+    `INSERT INTO provider_models (provider_id, kind, model_id, display_name, enabled, sort_order) VALUES ($1, $2, $3, $4, $5, $6)`,
+    [providerId, kind, m.model_id, m.display_name, m.enabled, i],
+  ])
 }
 
-export async function setProviderModels(db, env, id, list, ownerId = OWNER) {
+function modelStatements(providerId, list, kind = 'chat') {
+  if (!MODEL_KINDS.includes(kind)) throw new Error('模型種類不正確')
+  return [
+    [`DELETE FROM provider_models WHERE provider_id = $1 AND kind = $2`, [providerId, kind]],
+    ...insertModelStatements(providerId, cleanModels(list), kind),
+  ]
+}
+
+/** 覆寫模型清單。models → 聊天模型、embed_models → 嵌入模型；沒給的那一類不變。 */
+export async function setProviderModels(db, env, id, input, ownerId = OWNER) {
+  if (isEnvProviderId(id)) throw envReadonlyError()
   const row = (await db.query(`SELECT id FROM providers WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL`, [id, ownerId]))[0]
   if (!row) return null
-  await db.tx(modelStatements(id, list))
+  const lists = Array.isArray(input) ? { models: input } : (input || {})
+  const statements = []
+  if (Array.isArray(lists.models)) statements.push(...modelStatements(id, lists.models, 'chat'))
+  if (Array.isArray(lists.embed_models)) statements.push(...modelStatements(id, lists.embed_models, 'embed'))
+  if (statements.length) await db.tx(statements)
   return getProvider(db, env, id, ownerId)
 }
 
 export async function deleteProvider(db, id, ownerId = OWNER) {
+  if (isEnvProviderId(id)) throw envReadonlyError()
   const rows = await db.query(
     `UPDATE providers SET deleted_at = now(), api_key_enc = NULL, api_key_hint = NULL, updated_at = now()
       WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL RETURNING id`,
@@ -163,15 +212,10 @@ export async function deleteProvider(db, id, ownerId = OWNER) {
 
 /** 伺服器內部用：取得可直接呼叫上游的 {baseUrl, apiKey}。絕不回傳給前端。 */
 export async function providerCredentials(db, env, id, ownerId = OWNER) {
-  if (id === BUILTIN_GROQ_ID) {
-    const b = builtinProvider(env)
-    if (!b) throw new Error('伺服器未設定 GROQ_API_KEY')
-    return { baseUrl: b.base_url, apiKey: String(env.GROQ_API_KEY) }
-  }
-  if (id === BUILTIN_EMBED_ID) {
-    const b = builtinEmbeddingProvider(env)
-    if (!b) throw new Error('伺服器未設定 CLOUDFLARE_ACCOUNT_ID 與 CLOUDFLARE_AI_TOKEN')
-    return { baseUrl: b.base_url, apiKey: String(env.CLOUDFLARE_AI_TOKEN) }
+  if (isEnvProviderId(id)) {
+    const p = envProvider(env, id)
+    if (!p) throw new Error('找不到這個供應商（環境變數 PROVIDER_N_* 未設定或格式不正確）')
+    return { baseUrl: p.base_url, apiKey: p.api_key }
   }
   if (!db) throw new Error('伺服器未設定 DATABASE_URL')
   const row = (await db.query(
@@ -185,20 +229,29 @@ export async function providerCredentials(db, env, id, ownerId = OWNER) {
 }
 
 /**
- * 聊天用的供應商解析：
- *   1. body.provider_id（新前端）→ 查庫 + 解密
+ * 聊天用的供應商解析（沒有內建供應商）：
+ *   1. body.provider_id + model（新前端）→ 環境變數供應商或查庫解密
  *   2. body.provider / baseUrl（舊前端，過渡期相容）→ providerFromBody
- *   3. 都沒有 → 伺服器 Groq
+ *   3. 都沒有 → 設定面板選的預設模型（settings.active_provider_id + active_model_id）
+ *   4. 仍沒有 → 錯誤「請先在設定中新增供應商並選擇模型」
  */
 export async function resolveChatProvider(db, body, env, ownerId = OWNER) {
-  const providerId = body && (body.provider_id || body.providerId)
-  if (providerId) {
-    const cred = await providerCredentials(db, env, String(providerId), ownerId)
-    const model = String(body.model || body.model_id || '').trim().slice(0, 200)
-    if (!model) throw new Error('請先選擇模型')
-    return { ...cred, model }
+  let providerId = body && (body.provider_id || body.providerId)
+  let model = String((body && (body.model || body.model_id)) || '').trim().slice(0, 200)
+  const legacy = body && (typeof body.provider === 'object' && body.provider || body.baseUrl)
+  if (!providerId && legacy) return providerFromBody(body)
+  if (!providerId && db) {
+    const rows = await db.query(
+      `SELECT key, value FROM settings WHERE owner_id = $1 AND key IN ('active_provider_id', 'active_model_id')`, [ownerId])
+    const s = Object.fromEntries(rows.map((r) => [r.key, typeof r.value === 'string' ? r.value : (r.value == null ? '' : String(r.value))]))
+    if (s.active_provider_id && s.active_model_id) {
+      providerId = s.active_provider_id
+      model = String(s.active_model_id).trim().slice(0, 200)
+    }
   }
-  return providerFromBody(body, env)
+  if (!providerId || !model) throw new Error(NO_PROVIDER_MESSAGE)
+  const cred = await providerCredentials(db, env, String(providerId), ownerId)
+  return { ...cred, model }
 }
 
 // ── 金鑰輪替（第五階段）──────────────────────────────────────
