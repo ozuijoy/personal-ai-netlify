@@ -89,7 +89,7 @@ test('frontend phase 5: embeddings UI, key status, backup round trip', async () 
     // 1) 供應商頁：設定嵌入模型 → 自動補建索引
     A.w.document.querySelector('[data-pane="pane-providers"]').click()
     await waitFor(() => A.$('embed-provider').options.length >= 2)
-    assert.match(A.$('embed-status').textContent, /未設定/)
+    assert.match(A.$('embed-status').textContent, /未使用/)
     A.$('embed-provider').value = prov.provider.id
     A.$('embed-model').value = 'text-embedding-3-small'
     A.$('embed-save-btn').click()
