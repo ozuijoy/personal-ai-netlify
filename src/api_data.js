@@ -17,6 +17,7 @@
 //   POST   /api/files/:id/complete      {text?, title?, extract, pages?} 上傳完成、寫入知識庫
 //   GET    /api/files/:id/download[?inline=1]  → {url}（presigned GET，5 分鐘）
 //   DELETE /api/files/:id
+//   GET    /api/search/web              PUT /api/search/web {provider:'jina'|'tavily'|'off', api_key, key_provider, maxResults, snippetChars, contextChars}
 //   GET    /api/search/status           PUT /api/search/config {keyword: 'auto'|'bm25'|'bigram'|null}（關鍵字引擎）
 //   GET    /api/embeddings/status       PUT /api/embeddings/config {provider_id, model} | {reset:true}（關閉）   POST /api/embeddings/backfill
 //   GET    /api/admin/keys              POST /api/admin/rekey（金鑰輪替後重新加密）
@@ -42,9 +43,11 @@ import { createStorage } from './storage.js'
 import { handleMemorySuggest } from './memory_suggest.js'
 import { backfillEmbeddings, embeddingStatus, hybridSearch, setEmbeddingConfig } from './embeddings.js'
 import { keywordStatus, setKeywordMode } from './keyword_search.js'
+import { rekeyWebSearchSecrets, setWebSearchConfig, webSearchStatus } from './web_search_config.js'
 import { BACKUP_FORMAT, BACKUP_VERSION, TABLE_ORDER, exportPage, restoreRows } from './backup.js'
 
 const ID = '([A-Za-z0-9_-]{1,100})'
+const publicSettings = (s) => Object.fromEntries(Object.entries(s || {}).filter(([k]) => !k.startsWith('secret.')))
 const KINDS = Object.keys(ENTITIES).join('|')
 
 function needStorage(env) {
@@ -82,8 +85,12 @@ const ROUTES = [
   }],
   ['DELETE', new RegExp(`^/api/files/${ID}$`), async ({ db, env, m }) => ok(await deleteFile(db, createStorage(env), m[1]))],
 
-  ['GET', /^\/api\/settings$/, async ({ db }) => json({ ok: true, settings: await getSettings(db) })],
-  ['PUT', /^\/api\/settings$/, async ({ db, body }) => json({ ok: true, settings: await putSettings(db, body.settings || body) })],
+  ['GET', /^\/api\/settings$/, async ({ db }) => json({ ok: true, settings: publicSettings(await getSettings(db)) })],
+  ['PUT', /^\/api\/settings$/, async ({ db, body }) => {
+    const patch = body.settings || body
+    if (Object.keys(patch || {}).some((k) => k.startsWith('secret.'))) return errorJson('secret.* 設定只能經專用 API 修改', 400, 'bad_request')
+    return json({ ok: true, settings: publicSettings(await putSettings(db, patch)) })
+  }],
   ['GET', /^\/api\/profile$/, async ({ db }) => json({ ok: true, profile: await getProfile(db) })],
   ['PUT', /^\/api\/profile$/, async ({ db, body }) => json({ ok: true, profile: await putProfile(db, body.profile || body) })],
 
@@ -123,6 +130,11 @@ const ROUTES = [
     try { await setKeywordMode(db, body?.keyword ?? null) } catch (err) { return errorJson(err.message, err.status || 400, 'bad_request') }
     return json({ ok: true, status: await keywordStatus(db, env) })
   }],
+  // 網頁搜尋供應商（面板：Jina / Tavily，Key 加密存 Neon）
+  ['GET', /^\/api\/search\/web$/, async ({ db, env }) => json({ ok: true, status: await webSearchStatus(db, env) })],
+  ['PUT', /^\/api\/search\/web$/, async ({ db, env, body }) => {
+    try { return json({ ok: true, status: await setWebSearchConfig(db, env, body || {}) }) } catch (err) { return errorJson(err.message, err.status || 400, 'bad_request') }
+  }],
   // 語意檢索（第五階段）
   ['GET', /^\/api\/embeddings\/status$/, async ({ db, env }) => json({ ok: true, status: await embeddingStatus(db, env) })],
   ['PUT', /^\/api\/embeddings\/config$/, async ({ db, env, body }) => {
@@ -134,7 +146,8 @@ const ROUTES = [
   ['GET', /^\/api\/admin\/keys$/, async ({ db, env }) => json({ ok: true, keys: await keyStatus(db, env) })],
   ['POST', /^\/api\/admin\/rekey$/, async ({ db, env }) => {
     const r = await rekeyProviders(db, env)
-    return json({ ok: true, ...r, keys: await keyStatus(db, env) })
+    const w = await rekeyWebSearchSecrets(db, env)
+    return json({ ok: true, ...r, rekeyed: r.rekeyed + w.rekeyed, failed: [...r.failed, ...w.failed], keys: await keyStatus(db, env) })
   }],
   // 備份
   ['GET', /^\/api\/backup$/, async ({ db, url }) => {

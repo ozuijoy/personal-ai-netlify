@@ -34,7 +34,8 @@ function exportWhere(table) {
   if (table === 'provider_models') return `t.provider_id IN (SELECT id FROM providers WHERE owner_id = $1 AND deleted_at IS NULL)`
   if (table === 'messages') return `t.conversation_id IN (SELECT id FROM conversations WHERE owner_id = $1 AND deleted_at IS NULL)`
   const soft = ['settings', 'profiles', 'provider_models', 'messages'].includes(table) ? '' : ' AND t.deleted_at IS NULL'
-  return `t.owner_id = $1${soft}`
+  const noSecret = table === 'settings' ? ` AND t.key NOT LIKE 'secret.%'` : ''
+  return `t.owner_id = $1${soft}${noSecret}`
 }
 
 /** 匯出一頁。cursor = 上一頁最後一列的排序鍵（文字）。 */

@@ -1597,6 +1597,33 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
             </div>
             <p id="kw-status" class="settings-hint" style="min-height:18px"></p>
           </div>
+          <div class="settings-card" id="ws-card" style="margin-top:14px">
+            <div class="form-label" style="margin-bottom:6px">網頁搜尋</div>
+            <p class="settings-hint" style="margin-top:0">輸入框「搜尋」開啟時，伺服器先用這裡的服務搜尋，再把摘要交給模型。Key 加密存在資料庫；用完額度時貼上新 Key 儲存即可，不用重新部署。</p>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+              <select id="ws-provider" class="form-input" style="flex:1;min-width:160px">
+                <option value="">自動（有 Key 的先用，Jina 優先）</option>
+                <option value="jina">Jina（s.jina.ai）</option>
+                <option value="tavily">Tavily</option>
+                <option value="off">關閉</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+              <select id="ws-key-provider" class="form-input" style="width:120px">
+                <option value="jina">Jina Key</option>
+                <option value="tavily">Tavily Key</option>
+              </select>
+              <input type="password" id="ws-key" class="form-input" style="flex:1;min-width:160px" placeholder="貼上新 Key（留空不變）" autocomplete="off">
+              <button type="button" id="ws-key-clear-btn" class="topbar-action-btn">刪除此 Key</button>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+              <label class="settings-hint" style="margin:0">結果數 <input type="number" id="ws-max" class="form-input" style="width:64px" min="1" max="5"></label>
+              <label class="settings-hint" style="margin:0">每則字數 <input type="number" id="ws-snippet" class="form-input" style="width:80px" min="100" max="1200" step="50"></label>
+              <label class="settings-hint" style="margin:0">總字數 <input type="number" id="ws-context" class="form-input" style="width:84px" min="300" max="6000" step="100"></label>
+              <button type="button" id="ws-save-btn" class="topbar-action-btn primary">儲存</button>
+            </div>
+            <p id="ws-status" class="settings-hint" style="min-height:18px"></p>
+          </div>
         </div>
 
         <div id="pane-plan" class="settings-pane">
@@ -2962,6 +2989,54 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var r = await storeFetch('PUT', '/api/search/config', { keyword: mode });
       p5Status('kw-status', '已儲存。' + kwStatusText(r.status), r.status.mode !== 'bigram' && !r.status.bm25_available);
     } catch(e) { p5Status('kw-status', '儲存失敗：' + (e.message || ''), true); }
+  }
+  function wsStatusText(st) {
+    var parts = (st.providers || []).map(function(p) {
+      return p.label + '：' + (p.has_key ? '已設定 ' + (p.hint || '') : (p.env_key ? '環境變數' : '未設定'));
+    });
+    var act = st.active ? ('目前使用 ' + (st.active === 'jina' ? 'Jina' : 'Tavily')) : '目前沒有可用的搜尋服務';
+    if (!st.encryption) act += '（伺服器未設定 ENCRYPTION_KEY，無法儲存 Key）';
+    return act + '。' + parts.join('，') + '。';
+  }
+  function fillWsForm(st) {
+    document.getElementById('ws-provider').value = st.provider || '';
+    if (st.provider === 'jina' || st.provider === 'tavily') document.getElementById('ws-key-provider').value = st.provider;
+    var l = st.limits || {};
+    document.getElementById('ws-max').value = l.maxResults || 3;
+    document.getElementById('ws-snippet').value = l.snippetChars || 400;
+    document.getElementById('ws-context').value = l.contextChars || 1500;
+    document.getElementById('ws-key').value = '';
+  }
+  async function loadWebSearchPane() {
+    var card = document.getElementById('ws-card');
+    if (!card) return;
+    card.style.display = serverMode() ? '' : 'none';
+    if (!serverMode()) return;
+    try {
+      var st = (await storeFetch('GET', '/api/search/web')).status;
+      fillWsForm(st);
+      p5Status('ws-status', wsStatusText(st), !st.active);
+    } catch(e) { p5Status('ws-status', '讀取失敗：' + (e.message || ''), true); }
+  }
+  async function saveWebSearch(clearKey) {
+    var body = {
+      provider: document.getElementById('ws-provider').value || null,
+      maxResults: document.getElementById('ws-max').value,
+      snippetChars: document.getElementById('ws-snippet').value,
+      contextChars: document.getElementById('ws-context').value
+    };
+    var key = document.getElementById('ws-key').value.trim();
+    if (clearKey === true) {
+      if (!window.confirm('刪除這個搜尋服務的 Key？')) return;
+      body.api_key = ''; body.key_provider = document.getElementById('ws-key-provider').value;
+    } else if (key) {
+      body.api_key = key; body.key_provider = document.getElementById('ws-key-provider').value;
+    }
+    try {
+      var r = await storeFetch('PUT', '/api/search/web', body);
+      fillWsForm(r.status);
+      p5Status('ws-status', '已儲存。' + wsStatusText(r.status), !r.status.active);
+    } catch(e) { p5Status('ws-status', '儲存失敗：' + (e.message || ''), true); }
   }
   async function loadEmbeddingPane() {
     var card = document.getElementById('embed-card');
@@ -5623,7 +5698,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   function showSettingsPane(id) {
     if (id === 'pane-skills') loadSkills();
     if (id === 'pane-memory') loadMemories();
-    if (id === 'pane-providers') { loadEmbeddingPane(); loadKeywordPane(); }
+    if (id === 'pane-providers') { loadEmbeddingPane(); loadKeywordPane(); loadWebSearchPane(); }
     if (id === 'pane-data') { loadKeyStatus(); var bc = document.getElementById('backup-card'); if (bc) bc.style.display = serverMode() ? '' : 'none'; }
     document.querySelectorAll('.settings-pane').forEach(function(p) { p.classList.toggle('active', p.id === id); });
     document.querySelectorAll('.settings-nav-btn').forEach(function(b) { b.classList.toggle('active', b.getAttribute('data-pane') === id); });
@@ -6306,6 +6381,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       if (byId('embed-save-btn')) byId('embed-save-btn').addEventListener('click', saveEmbeddingConfig);
       if (byId('embed-run-btn')) byId('embed-run-btn').addEventListener('click', function() { runEmbeddingBackfill(false); });
       if (byId('kw-save-btn')) byId('kw-save-btn').addEventListener('click', saveKeywordMode);
+      if (byId('ws-save-btn')) byId('ws-save-btn').addEventListener('click', function() { saveWebSearch(false); });
+      if (byId('ws-key-clear-btn')) byId('ws-key-clear-btn').addEventListener('click', function() { saveWebSearch(true); });
       if (byId('rekey-btn')) byId('rekey-btn').addEventListener('click', rekeyNow);
       if (byId('backup-download-btn')) byId('backup-download-btn').addEventListener('click', downloadServerBackup);
       if (byId('backup-restore-btn')) byId('backup-restore-btn').addEventListener('click', function() { byId('backup-restore-input').click(); });

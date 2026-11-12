@@ -16,7 +16,7 @@ export function appConfig(env = {}) {
     appOrigin: String(env.APP_ORIGIN || '').replace(/\/+$/, ''),
     hasPassword: !!env.APP_PASSWORD,
     hasAuthSecret: !!env.AUTH_SECRET,
-    hasTavily: !!env.TAVILY_API_KEY,
+    hasTavily: !!(env.TAVILY_API_KEY || env.JINA_API_KEY),
     hasDb: !!(env.DATABASE_URL || env.NETLIFY_DATABASE_URL || env.__db),
     hasEncryption: !!env.ENCRYPTION_KEY,
   }

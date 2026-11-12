@@ -49,7 +49,7 @@ export default {
           version: APP_VERSION,
           sync: false,
           storage: !!getDb(env),
-          search: !!env.TAVILY_API_KEY,
+          search: !!(env.TAVILY_API_KEY || env.JINA_API_KEY || getDb(env)),
           image: true,
           providers: true,
         })
@@ -204,7 +204,7 @@ async function meRoute(request, env) {
       files: !!(getDb(env) && createStorage(env)),
       max_upload_mb: Math.round(maxUploadBytes(env) / 1048576),
       encryption: encryptionConfigured(env),
-      search: !!env.TAVILY_API_KEY,
+      search: !!(env.TAVILY_API_KEY || env.JINA_API_KEY || getDb(env)),
       image: true,
       env_providers: envProviders(env).length,
       version: APP_VERSION,

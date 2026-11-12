@@ -3,7 +3,7 @@
 [`scupro/personal-ai`](https://github.com/scupro/personal-ai)（Cloudflare Workers + D1）的移植版，改用 **Netlify Functions / Edge Functions + Neon Postgres**。
 資料以伺服器為主（不再依賴瀏覽器 localStorage），API Key 在伺服器端以 AES-256-GCM 加密。
 
-> **狀態：五個階段已在本機完成，58 項測試通過，尚未部署。**
+> **狀態：五個階段已在本機完成，62 項測試通過，尚未部署。**
 > 部署前仍需實測：真實 Neon（含 pgvector）、Neon Object Storage、Edge 串流超過 60 秒、實際使用的供應商（聊天與嵌入）端點。
 
 - 完整架構與設計理由：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
@@ -64,6 +64,8 @@ test/                                  node:test；資料庫測試以 PGlite 實
 
 ## API 一覽
 
+- `GET/PUT /api/search/web`：網頁搜尋服務、Key（只寫入，回傳末四碼）與長度上限
+
 | 路徑 | 用途 |
 |---|---|
 | `/api/health`、`/api/config`、`/api/me` | 狀態、公開設定、目前使用者與設定 |
@@ -95,7 +97,9 @@ test/                                  node:test；資料庫測試以 PGlite 實
 | `DATABASE_URL` | ✓ | Neon pooled 連線字串（`sslmode=require`） |
 | `SESSION_DAYS` | | 預設 30 |
 | `SESSION_VERSION` | | 改值即登出所有裝置 |
-| `TAVILY_API_KEY` | | 網路搜尋工具 |
+| `JINA_API_KEY` | | 網頁搜尋（Jina）；面板未設定 Key 時的退路 |
+| `TAVILY_API_KEY` | | 網頁搜尋（Tavily）；面板未設定 Key 時的退路 |
+| `SEARCH_MAX_RESULTS` / `SEARCH_SNIPPET_CHARS` / `SEARCH_CONTEXT_CHARS` | | 網頁搜尋注入上限預設值（3／400／1500），面板可覆蓋 |
 | `KEYWORD_SEARCH` | | 關鍵字引擎預設值 `auto`／`bm25`／`bigram`，預設 `auto`；面板設定優先，見[中文斷詞與 BM25 檢索](#中文斷詞與-bm25-檢索) |
 | `PROVIDER_N_NAME` | 該組必填 | 環境變數供應商名稱，`N` = 1–20，見[用環境變數設定供應商](#用環境變數設定供應商) |
 | `PROVIDER_N_BASE_URL` | 該組必填 | OpenAI 相容基底網址（HTTPS） |
@@ -116,7 +120,7 @@ test/                                  node:test；資料庫測試以 PGlite 實
 
 ```bash
 npm install
-npm test                 # 58 項；不需要真的資料庫（PGlite）
+npm test                 # 62 項；不需要真的資料庫（PGlite）
 npm run gen:key          # 產生 ENCRYPTION_KEY
 npm run build            # 由 src/web_decoded.html 產生 public/
 DATABASE_URL=... npm run db:migrate
@@ -389,6 +393,41 @@ KEYWORD_SEARCH=bigram
 - `mixed` 模式下應使用 `plainto_tsquery` 類查詢；本程式以 `to_tsvector` 產生查詢詞並交給 `to_bm25query`，不使用片語查詢。
 - 本機測試（PGlite）沒有這兩個擴充套件，只能用替身物件驗證 SQL 與退路；**尚未在真實 Neon 上執行過**。
 - 要完全移除：切到 `bigram` 即可；若要刪除資料庫物件，執行 `DROP INDEX doc_chunks_bm25; ALTER TABLE doc_chunks DROP COLUMN tsv_zh; DROP TEXT SEARCH CONFIGURATION public.pa_zh;`。
+
+## 網頁搜尋
+
+輸入框的「搜尋」開啟時，伺服器先搜尋網路，把摘要放進系統提示再交給聊天模型。搜尋不是模型，也不在「供應商」裡加。
+
+設定位置：設定 → 供應商 → 「網頁搜尋」卡片。
+
+- 服務：Jina（`s.jina.ai`）或 Tavily；「自動」會用有 Key 的那個，Jina 優先；也可「關閉」。
+- Key：加密（AES-256-GCM，`ENCRYPTION_KEY`）存在 Neon `settings` 的 `secret.search.<服務>`，不經 `/api/settings` 回傳、不進備份；金鑰輪替時一併重新加密。額度用完時貼上新 Key 按「儲存」即可，不用重新部署。
+- 長度：結果數（1–5，預設 3）、每則字數（100–1200，預設 400）、總字數（300–6000，預設 1500）。Jina 以 `X-Respond-With: no-content` 只取摘要，不抓全文。
+- 退路：面板沒有 Key 時用環境變數 `JINA_API_KEY`、`TAVILY_API_KEY`（需重新部署）。
+
+### `JINA_API_KEY`
+
+格式：Jina 的 API Key（`jina_` 開頭）。
+
+範例：
+
+```
+JINA_API_KEY=jina_xxxxxxxxxxxxxxxx
+```
+
+依 https://jina.ai/reader/ ：新 Key 附 1,000 萬 token，每次搜尋至少扣 10,000 token（約 1,000 次）。
+
+### `TAVILY_API_KEY`
+
+格式：Tavily 的 API Key（`tvly-` 開頭）。
+
+範例：
+
+```
+TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxx
+```
+
+依 https://docs.tavily.com/documentation/api-credits ：免費每月 1,000 credits，basic 搜尋每次 1 credit。
 
 ## API Key 加密金鑰輪替
 

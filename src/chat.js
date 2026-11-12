@@ -118,7 +118,7 @@ function sseFromJson(data) {
 // loadContext(body, env, text) -> {text, skills, memories}：伺服器注入技能與 Memory（失敗不影響聊天）。
 // resolveProvider(body, env) -> {baseUrl, apiKey, model}；Netlify 版由呼叫端注入（查 Neon + 解密），
 // 未注入時只接受請求內帶的 provider（沒有內建供應商）。
-export async function handleChat(request, env, { resolveProvider, loadContext } = {}) {
+export async function handleChat(request, env, { resolveProvider, loadContext, resolveSearch } = {}) {
   let body
   try {
     body = await readJsonBody(request)
@@ -141,8 +141,15 @@ export async function handleChat(request, env, { resolveProvider, loadContext } 
   let searchStatus = ''
   if (body.search_web) {
     const query = lastUserText(body).slice(0, 400)
-    const found = await searchWeb(query, env, { maxResults: searchLimits(env).maxResults })
-    searchResults = limitSearchResults(found.results || [], env)
+    let cfg = null
+    try { cfg = resolveSearch ? await resolveSearch(env) : null } catch {}
+    const limits = (cfg && cfg.limits) || searchLimits(env)
+    const found = cfg && !cfg.provider
+      ? { results: [], error: 'no_key' }
+      : await searchWeb(query, env, { maxResults: limits.maxResults, provider: cfg?.provider, apiKey: cfg?.apiKey })
+    searchResults = limitSearchResults(found.results || [], {
+      SEARCH_MAX_RESULTS: limits.maxResults, SEARCH_SNIPPET_CHARS: limits.snippetChars, SEARCH_CONTEXT_CHARS: limits.contextChars,
+    })
     searchStatus = found.error || (found.cached ? 'cached' : 'ok')
   }
 

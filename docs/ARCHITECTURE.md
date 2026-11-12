@@ -195,6 +195,12 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 - 舊前端相容：請求內帶 `provider: {baseUrl, apiKey}`（舊瀏覽器保存 Key 模式）仍可用，但沒有任何伺服器端退回。
 - 遷移：`0003_model_kinds.sql` 只新增欄位與唯一索引（`provider_models.kind`，既有列為 `chat`，唯一鍵改為 `(provider_id, kind, model_id)`），需在部署新版程式前執行 `npm run db:migrate`。
 
+## 3.7 網頁搜尋供應商（面板）
+
+- `src/web_search_config.js`：`settings.search.web` = {provider: jina|tavily|off, maxResults, snippetChars, contextChars}；Key 存 `secret.search.<provider>`（AES-256-GCM，AAD = owner_id + 設定鍵）。`secret.*` 由 `/api/settings` 過濾、拒寫，`backup` 匯出排除；`/api/admin/rekey` 一併重新加密。
+- `src/tools/search.js`：`searchWeb` 依 provider 呼叫 `s.jina.ai`（`Accept: application/json`、`X-Respond-With: no-content`）或 `api.tavily.com/search`（basic）；`limitSearchResults` 依上限截斷後注入系統提示。
+- Edge `/api/chat` 以 `resolveSearch` 注入面板設定；沒有面板 Key 時退回 `JINA_API_KEY`／`TAVILY_API_KEY`。
+
 ## 4. 前端改動範圍（第二階段）
 
 前端是單檔 `src/web_decoded.html`（約 31 萬字元），localStorage 鍵約 30 個。策略：**伺服器為主、localStorage 只當快取與離線暫存**，新增一個 `api` 小模組集中所有請求。

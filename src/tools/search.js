@@ -17,57 +17,77 @@ function clean(text, max = MAX_SNIPPET) {
 }
 
 export function tavilyConfigured(env) {
-  return !!env.TAVILY_API_KEY
+  return !!(env.TAVILY_API_KEY || env.JINA_API_KEY)
 }
 
-export async function searchWeb(query, env, { maxResults = 5 } = {}) {
+// opts.provider / opts.apiKey 由面板設定（src/web_search_config.js）傳入；未傳時退回環境變數（JINA_API_KEY 優先，再 TAVILY_API_KEY）。
+export async function searchWeb(query, env = {}, { maxResults = 5, provider, apiKey } = {}) {
   const q = String(query || '').trim()
   if (!q) return { results: [], error: 'empty_query' }
-  if (!env.TAVILY_API_KEY) return { results: [], error: 'no_key' }
+  let p = provider
+  let key = apiKey
+  if (!p || !key) {
+    if (env.JINA_API_KEY) { p = 'jina'; key = env.JINA_API_KEY }
+    else if (env.TAVILY_API_KEY) { p = 'tavily'; key = env.TAVILY_API_KEY }
+  }
+  if (!p || !key) return { results: [], error: 'no_key' }
+  const n = Math.min(5, Math.max(1, Number(maxResults) || 5))
 
-  const key = q.toLowerCase().slice(0, 200)
-  const hit = cache.get(key)
-  if (hit && Date.now() - hit.at < CACHE_TTL) return { results: hit.results, cached: true }
+  const cacheKey = `${p}:${n}:${q.toLowerCase().slice(0, 200)}`
+  const hit = cache.get(cacheKey)
+  if (hit && Date.now() - hit.at < CACHE_TTL) return { results: hit.results, cached: true, provider: p }
 
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort('timeout'), 15_000)
+  const timer = setTimeout(() => controller.abort('timeout'), 20_000)
   try {
-    const res = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${env.TAVILY_API_KEY}`,
-      },
-      body: JSON.stringify({
-        query: q.slice(0, 400),
-        search_depth: 'basic',
-        max_results: Math.min(5, Math.max(1, Number(maxResults) || 5)),
-        include_answer: false,
-        include_raw_content: false,
-        include_images: false,
-      }),
-      signal: controller.signal,
-    })
-    if (!res.ok) {
-      return { results: [], error: `search_http_${res.status}` }
+    let res
+    if (p === 'jina') {
+      // https://jina.ai/reader/ ：s.jina.ai 需 API Key；Accept: application/json 回傳 data[]（title, url, description, content）。
+      // X-Respond-With: no-content 只回標題、網址與摘要，不抓全文，控制上下文長度。
+      res = await fetch('https://s.jina.ai/?q=' + encodeURIComponent(q.slice(0, 400)), {
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${key}`,
+          'X-Respond-With': 'no-content',
+        },
+        signal: controller.signal,
+      })
+    } else if (p === 'tavily') {
+      res = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({
+          query: q.slice(0, 400),
+          search_depth: 'basic',
+          max_results: n,
+          include_answer: false,
+          include_raw_content: false,
+          include_images: false,
+        }),
+        signal: controller.signal,
+      })
+    } else {
+      return { results: [], error: 'unknown_provider' }
     }
+    if (!res.ok) return { results: [], error: `search_http_${res.status}`, provider: p }
     const data = await res.json().catch(() => ({}))
-    const results = (Array.isArray(data.results) ? data.results : [])
-      .slice(0, 5)
+    const list = p === 'jina' ? (Array.isArray(data.data) ? data.data : []) : (Array.isArray(data.results) ? data.results : [])
+    const results = list
+      .slice(0, n)
       .map((r) => ({
         title: clean(r.title, 180) || clean(r.url, 180),
         url: String(r.url || ''),
-        content: clean(r.content || r.snippet || '', MAX_SNIPPET),
+        content: clean(r.description || r.content || r.snippet || '', MAX_SNIPPET),
       }))
       .filter((r) => /^https?:\/\//i.test(r.url))
-    cache.set(key, { results, at: Date.now() })
+    cache.set(cacheKey, { results, at: Date.now() })
     if (cache.size > 100) {
       const now = Date.now()
       for (const [k, v] of cache) if (now - v.at > CACHE_TTL) cache.delete(k)
     }
-    return { results }
+    return { results, provider: p }
   } catch (err) {
-    return { results: [], error: err && err.name === 'AbortError' ? 'timeout' : 'network_error' }
+    return { results: [], error: err && err.name === 'AbortError' ? 'timeout' : 'network_error', provider: p }
   } finally {
     clearTimeout(timer)
   }
