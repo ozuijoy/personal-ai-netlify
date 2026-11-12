@@ -1286,15 +1286,15 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     <div class="art-head">
       <div class="art-head-top">
         <div class="art-title-wrap">
-          <textarea class="art-title-input" id="art-title" maxlength="72" rows="2" placeholder="Título corto (máx. 72)" aria-label="Título">Artifact</textarea>
+          <textarea class="art-title-input" id="art-title" maxlength="72" rows="2" placeholder="Título corto (máx. 72)" data-art-i18n-ph="titlePh" aria-label="Título">Artifact</textarea>
           <div class="art-title-count" id="art-title-count">0/72</div>
         </div>
-        <button type="button" class="icon-btn" id="art-close-btn" title="Cerrar" aria-label="Cerrar">✕</button>
+        <button type="button" class="icon-btn" id="art-close-btn" data-art-i18n-title="close" title="Cerrar" aria-label="Cerrar">✕</button>
       </div>
       <div class="art-toolbar">
         <select id="art-format" class="art-format" title="Formato" aria-label="Formato del artifact"></select>
         <button type="button" class="topbar-action-btn" id="art-copy-btn" data-art-i18n="copy">Copiar</button>
-        <button type="button" class="topbar-action-btn" id="art-save-btn">Guardar</button>
+        <button type="button" class="topbar-action-btn" id="art-save-btn" data-art-i18n="save">Guardar</button>
       </div>
       <div class="art-viewbar">
         <div class="art-view" role="tablist" aria-label="Vista">
@@ -1309,18 +1309,18 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       
     </div>
     <div class="art-extras">
-      <button type="button" class="art-extras-toggle" id="art-extras-toggle">Fuentes, recursos y widgets</button>
+      <button type="button" class="art-extras-toggle" id="art-extras-toggle" data-art-i18n="extras">Fuentes, recursos y widgets</button>
       <div class="art-extras-body" id="art-extras-body" hidden>
-        <label for="art-sources">Fuentes propias (una por línea: Título | https://…)</label>
+        <label for="art-sources" data-art-i18n="sources">Fuentes propias (una por línea: Título | https://…)</label>
         <textarea id="art-sources" placeholder="SEC 10-K | https://www.sec.gov/…"></textarea>
-        <label for="art-resources">Recursos (una por línea)</label>
+        <label for="art-resources" data-art-i18n="resources">Recursos (una por línea)</label>
         <textarea id="art-resources" placeholder="Modelo Excel | https://…"></textarea>
         <label for="art-widgets">Widgets (quote:MSFT · note:texto · https://…)</label>
         <textarea id="art-widgets" placeholder="quote:MSFT&#10;note:Riesgo: múltiplo elevado&#10;https://www.tradingview.com/symbols/MSFT/"></textarea>
       </div>
     </div>
     <div class="art-split" id="art-split">
-      <textarea class="art-editor" id="art-editor" spellcheck="false" placeholder="Escribe aquí el contenido. La IA genera una base; tú la editas." aria-label="Editor del artifact"></textarea>
+      <textarea class="art-editor" id="art-editor" spellcheck="false" data-art-i18n-ph="editorPh" placeholder="Escribe aquí el contenido. La IA genera una base; tú la editas." aria-label="Editor del artifact"></textarea>
       <iframe class="art-preview" id="art-preview" hidden sandbox="allow-scripts allow-forms allow-modals allow-popups" referrerpolicy="no-referrer" title="Vista del artifact"></iframe>
     </div>
   </aside>
@@ -3168,7 +3168,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var placeholder = '§§CODEBLOCK_' + codeBlocks.length + '§§';
       var safeLang = lang.trim() || 'code';
       var html = '<div class="code-block-box"><div class="code-block-header"><span>' + escapeHtml(safeLang) + '</span>' +
-        '<button class="code-copy-btn" data-code="' + encodeURIComponent(code) + '">Copiar</button></div>' +
+        '<button class="code-copy-btn" data-code="' + encodeURIComponent(code) + '">' + artT('copy') + '</button></div>' +
         '<pre class="code-block-pre"><code>' + escapeHtml(code) + '</code></pre></div>';
       codeBlocks.push(html);
       return placeholder;
@@ -3177,7 +3177,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(match, alt, url) {
       return '<div class="ai-image-card"><img src="' + url + '" alt="' + alt + '" class="ai-image-img" data-img-url="' + url + '" loading="lazy">' +
         '<div class="ai-image-footer"><span style="font-size:0.75rem;font-weight:600">' + alt + '</span>' +
-        '<a href="' + url + '" target="_blank" download="personal-ai-visual.jpg" class="topbar-action-btn" style="text-decoration:none;padding:3px 8px;font-size:0.7rem">Descargar</a></div></div>';
+        '<a href="' + url + '" target="_blank" download="personal-ai-visual.jpg" class="topbar-action-btn" style="text-decoration:none;padding:3px 8px;font-size:0.7rem">' + artT('download') + '</a></div></div>';
     });
     text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--blue);text-decoration:none">$1</a>');
     var lines = text.split(/\r?\n/);
@@ -3303,13 +3303,13 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
           var safeLang = (lang || 'code').trim();
           var rawCode = code.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'");
           return '<div class="code-block-box"><div class="code-block-header"><span>' + escapeHtml(safeLang) + '</span>' +
-            '<button class="code-copy-btn" data-code="' + encodeURIComponent(rawCode) + '">Copiar</button></div>' +
+            '<button class="code-copy-btn" data-code="' + encodeURIComponent(rawCode) + '">' + artT('copy') + '</button></div>' +
             '<pre class="code-block-pre"><code>' + code + '</code></pre></div>';
         });
         rawHtml = rawHtml.replace(/<img\s+src="([^"]*)"\s+alt="([^"]*)"[^>]*>/g, function(match, src, alt) {
           return '<div class="ai-image-card"><img src="' + src + '" alt="' + alt + '" class="ai-image-img" data-img-url="' + src + '" loading="lazy">' +
             '<div class="ai-image-footer"><span style="font-size:0.75rem;font-weight:600">' + alt + '</span>' +
-            '<a href="' + src + '" target="_blank" download="personal-ai-visual.jpg" class="topbar-action-btn" style="text-decoration:none;padding:3px 8px;font-size:0.7rem">Descargar</a></div></div>';
+            '<a href="' + src + '" target="_blank" download="personal-ai-visual.jpg" class="topbar-action-btn" style="text-decoration:none;padding:3px 8px;font-size:0.7rem">' + artT('download') + '</a></div></div>';
         });
         return sanitizeHtml(rawHtml);
       } catch(e) {}
@@ -4067,14 +4067,21 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   });
   var artView = 'preview';
   var ART_I18N = {
-    es: { preview: 'Vista previa', code: 'Código', download: 'Descargar', fullscreen: 'Pantalla completa', exitfs: 'Salir de pantalla completa', copied: 'Copiado', copy: 'Copiar', version: 'Versión', open: 'Abrir artifact' },
-    en: { preview: 'Preview', code: 'Code', download: 'Download', fullscreen: 'Full screen', exitfs: 'Exit full screen', copied: 'Copied', copy: 'Copy', version: 'Version', open: 'Open artifact' },
+    es: { preview: 'Vista previa', code: 'Código', download: 'Descargar', fullscreen: 'Pantalla completa', exitfs: 'Salir de pantalla completa', copied: 'Copiado', copy: 'Copiar', version: 'Versión', open: 'Abrir artifact', save: 'Guardar', close: 'Cerrar', extras: 'Fuentes, recursos y widgets', sources: 'Fuentes propias (una por línea: Título | https://…)', resources: 'Recursos (una por línea)', titlePh: 'Título corto (máx. 72)', editorPh: 'Escribe aquí el contenido. La IA genera una base; tú la editas.' },
+    en: { preview: 'Preview', code: 'Code', download: 'Download', fullscreen: 'Full screen', exitfs: 'Exit full screen', copied: 'Copied', copy: 'Copy', version: 'Version', open: 'Open artifact', save: 'Save', close: 'Close', extras: 'Sources, resources and widgets', sources: 'Your sources (one per line: Title | https://…)', resources: 'Resources (one per line)', titlePh: 'Short title (max. 72)', editorPh: 'Write the content here. The AI drafts a base; you edit it.' },
+    'zh-TW': { preview: '預覽', code: '程式碼', download: '下載', fullscreen: '全螢幕', exitfs: '離開全螢幕', copied: '已複製', copy: '複製', version: '版本', open: '開啟 artifact', save: '儲存', close: '關閉', extras: '來源、資源與小工具', sources: '自訂來源（每行一筆：標題 | https://…）', resources: '資源（每行一筆）', titlePh: '短標題（最多 72 字）', editorPh: '在這裡輸入內容。AI 先產生初稿，你再編輯。' },
+    zh: { preview: '预览', code: '代码', download: '下载', fullscreen: '全屏', exitfs: '退出全屏', copied: '已复制', copy: '复制', version: '版本', open: '打开 artifact', save: '保存', close: '关闭', extras: '来源、资源与小组件', sources: '自定义来源（每行一条：标题 | https://…）', resources: '资源（每行一条）', titlePh: '短标题（最多 72 字）', editorPh: '在这里输入内容。AI 先生成初稿，你再编辑。' },
     ca: { preview: 'Vista prèvia', code: 'Codi', download: 'Baixa', fullscreen: 'Pantalla completa', exitfs: 'Surt de pantalla completa', copied: 'Copiat', copy: 'Copia', version: 'Versió', open: 'Obre l\'artifact' }
   };
+  // 依介面語言挑字典：完整 id（zh-TW）→ 前兩碼（zh）→ 英文（其他語言不再退回西班牙文）
+  function uiLangDict(dicts) {
+    var l = (window.TA && TA.lang) ? String(TA.lang()) : String(document.documentElement.lang || 'en');
+    if (l === 'zh-Hant') l = 'zh-TW';
+    return dicts[l] || dicts[l.slice(0, 2)] || dicts.en;
+  }
   function artT(k) {
-    var l = String(document.documentElement.lang || 'es').slice(0, 2);
-    var d = ART_I18N[l] || ART_I18N.es;
-    return d[k] || ART_I18N.es[k] || k;
+    var d = uiLangDict(ART_I18N);
+    return d[k] || ART_I18N.en[k] || k;
   }
   function localizeArtPanel() {
     document.querySelectorAll('[data-art-i18n]').forEach(function(el) { el.textContent = artT(el.getAttribute('data-art-i18n')); });
@@ -4082,6 +4089,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var v = artT(el.getAttribute('data-art-i18n-title'));
       el.title = v; el.setAttribute('aria-label', v);
     });
+    document.querySelectorAll('[data-art-i18n-ph]').forEach(function(el) { el.placeholder = artT(el.getAttribute('data-art-i18n-ph')); });
     var vs = document.getElementById('art-version');
     if (vs) vs.setAttribute('aria-label', artT('version'));
     var fs = document.getElementById('art-fs-btn');
@@ -4773,11 +4781,12 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   var DPM_I18N = {
     es: { more: 'Más opciones', attach: 'Adjuntar archivo', web: 'Buscar en la web', image: 'Crear imagen', providers: 'Conectores' },
     en: { more: 'More options', attach: 'Attach a file', web: 'Search the web', image: 'Create an image', providers: 'Providers' },
-    ca: { more: 'Més opcions', attach: 'Adjunta un fitxer', web: 'Cerca al web', image: 'Crea una imatge', providers: 'Providers' }
+    ca: { more: 'Més opcions', attach: 'Adjunta un fitxer', web: 'Cerca al web', image: 'Crea una imatge', providers: 'Providers' },
+    'zh-TW': { more: '更多選項', attach: '附加檔案', web: '搜尋網路', image: '產生圖片', providers: '供應商' },
+    zh: { more: '更多选项', attach: '附加文件', web: '搜索网络', image: '生成图片', providers: '供应商' }
   };
   function localizeDockMenu() {
-    var l = String(document.documentElement.lang || 'es').slice(0, 2);
-    var d = DPM_I18N[l] || DPM_I18N.es;
+    var d = uiLangDict(DPM_I18N);
     document.querySelectorAll('.dpm-item').forEach(function(it) {
       var lab = it.querySelector('.dpm-label');
       if (lab) lab.textContent = d[it.getAttribute('data-dpm')] || lab.textContent;
@@ -5114,11 +5123,12 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   var PROJ_I18N = {
     es: { emptyTitle: 'Aún no hay proyectos', newProject: 'Nuevo proyecto', editProject: 'Editar proyecto', name: 'Nombre', namePh: 'Ej.: Lanzamiento de la web', desc: 'Descripción', descPh: '¿De qué trata este proyecto?', instr: 'Instrucciones', instrPh: 'Cómo debe responder el asistente en este proyecto: contexto, tono, formato…', role: 'Rol por defecto', files: 'Archivos', filesHint: 'Texto, Markdown, CSV, JSON o código · máx. 200 KB por archivo. Se usan como contexto en los chats del proyecto.', addFiles: 'Añadir archivos', noFiles: 'Sin archivos todavía', remove: 'Quitar', cancel: 'Cancelar', save: 'Guardar', create: 'Crear proyecto', del: 'Eliminar', delTitle: '¿Eliminar el proyecto?', delBody: 'Se eliminarán «{n}» y sus archivos. Las conversaciones se conservan, sin proyecto.', edit: 'Editar', exit: 'Salir', label: 'Proyecto', chatsN: '{n} chats', chat1: '1 chat', filesN: '{n} archivos', file1: '1 archivo', empty: 'Agrupa chats, instrucciones y archivos por tema.', nameReq: 'Ponle un nombre al proyecto.', tooBig: '{f}: demasiado grande (máx. 200 KB)', notText: '{f}: formato no compatible', created: 'Proyecto creado', saved: 'Proyecto guardado', deleted: 'Proyecto eliminado', switched: 'Proyecto activo: {n}', left: 'Sin proyecto activo', ctxHead: 'Contexto del proyecto «{n}»', instrHead: 'Instrucciones del proyecto' },
     en: { emptyTitle: 'No projects yet', newProject: 'New project', editProject: 'Edit project', name: 'Name', namePh: 'e.g. Website launch', desc: 'Description', descPh: 'What is this project about?', instr: 'Instructions', instrPh: 'How the assistant should answer in this project: context, tone, format…', role: 'Default role', files: 'Files', filesHint: 'Text, Markdown, CSV, JSON or code · max 200 KB per file. Used as context in this project’s chats.', addFiles: 'Add files', noFiles: 'No files yet', remove: 'Remove', cancel: 'Cancel', save: 'Save', create: 'Create project', del: 'Delete', delTitle: 'Delete project?', delBody: '“{n}” and its files will be deleted. Conversations are kept, without a project.', edit: 'Edit', exit: 'Exit', label: 'Project', chatsN: '{n} chats', chat1: '1 chat', filesN: '{n} files', file1: '1 file', empty: 'Group chats, instructions and files by topic.', nameReq: 'Give the project a name.', tooBig: '{f}: too large (max 200 KB)', notText: '{f}: unsupported format', created: 'Project created', saved: 'Project saved', deleted: 'Project deleted', switched: 'Active project: {n}', left: 'No active project', ctxHead: 'Context for project “{n}”', instrHead: 'Project instructions' },
-    ca: { emptyTitle: 'Encara no hi ha projectes', newProject: 'Nou projecte', editProject: 'Edita el projecte', name: 'Nom', namePh: 'P. ex.: Llançament del web', desc: 'Descripció', descPh: 'De què tracta aquest projecte?', instr: 'Instruccions', instrPh: 'Com ha de respondre l’assistent en aquest projecte: context, to, format…', role: 'Rol per defecte', files: 'Fitxers', filesHint: 'Text, Markdown, CSV, JSON o codi · màx. 200 KB per fitxer. S’usen com a context als xats del projecte.', addFiles: 'Afegeix fitxers', noFiles: 'Encara no hi ha fitxers', remove: 'Treu', cancel: 'Cancel·la', save: 'Desa', create: 'Crea el projecte', del: 'Elimina', delTitle: 'Vols eliminar el projecte?', delBody: 'S’eliminaran «{n}» i els seus fitxers. Les converses es conserven, sense projecte.', edit: 'Edita', exit: 'Surt', label: 'Projecte', chatsN: '{n} xats', chat1: '1 xat', filesN: '{n} fitxers', file1: '1 fitxer', empty: 'Agrupa xats, instruccions i fitxers per tema.', nameReq: 'Posa un nom al projecte.', tooBig: '{f}: massa gran (màx. 200 KB)', notText: '{f}: format no compatible', created: 'Projecte creat', saved: 'Projecte desat', deleted: 'Projecte eliminat', switched: 'Projecte actiu: {n}', left: 'Cap projecte actiu', ctxHead: 'Context del projecte «{n}»', instrHead: 'Instruccions del projecte' }
+    ca: { emptyTitle: 'Encara no hi ha projectes', newProject: 'Nou projecte', editProject: 'Edita el projecte', name: 'Nom', namePh: 'P. ex.: Llançament del web', desc: 'Descripció', descPh: 'De què tracta aquest projecte?', instr: 'Instruccions', instrPh: 'Com ha de respondre l’assistent en aquest projecte: context, to, format…', role: 'Rol per defecte', files: 'Fitxers', filesHint: 'Text, Markdown, CSV, JSON o codi · màx. 200 KB per fitxer. S’usen com a context als xats del projecte.', addFiles: 'Afegeix fitxers', noFiles: 'Encara no hi ha fitxers', remove: 'Treu', cancel: 'Cancel·la', save: 'Desa', create: 'Crea el projecte', del: 'Elimina', delTitle: 'Vols eliminar el projecte?', delBody: 'S’eliminaran «{n}» i els seus fitxers. Les converses es conserven, sense projecte.', edit: 'Edita', exit: 'Surt', label: 'Projecte', chatsN: '{n} xats', chat1: '1 xat', filesN: '{n} fitxers', file1: '1 fitxer', empty: 'Agrupa xats, instruccions i fitxers per tema.', nameReq: 'Posa un nom al projecte.', tooBig: '{f}: massa gran (màx. 200 KB)', notText: '{f}: format no compatible', created: 'Projecte creat', saved: 'Projecte desat', deleted: 'Projecte eliminat', switched: 'Projecte actiu: {n}', left: 'Cap projecte actiu', ctxHead: 'Context del projecte «{n}»', instrHead: 'Instruccions del projecte' },
+    'zh-TW': { emptyTitle: '還沒有專案', newProject: '新專案', editProject: '編輯專案', name: '名稱', namePh: '例：網站上線', desc: '說明', descPh: '這個專案在做什麼？', instr: '指示', instrPh: '助理在這個專案中應如何回答：背景、語氣、格式…', role: '預設角色', files: '檔案', filesHint: '文字、Markdown、CSV、JSON 或程式碼・每個檔案最多 200 KB，會作為本專案對話的背景資料。', addFiles: '新增檔案', noFiles: '還沒有檔案', remove: '移除', cancel: '取消', save: '儲存', create: '建立專案', del: '刪除', delTitle: '要刪除專案嗎？', delBody: '「{n}」和它的檔案會被刪除。對話會保留，但不再屬於任何專案。', edit: '編輯', exit: '離開', label: '專案', chatsN: '{n} 個對話', chat1: '1 個對話', filesN: '{n} 個檔案', file1: '1 個檔案', empty: '依主題整理對話、指示與檔案。', nameReq: '請替專案取個名字。', tooBig: '{f}：檔案太大（最多 200 KB）', notText: '{f}：不支援的格式', created: '專案已建立', saved: '專案已儲存', deleted: '專案已刪除', switched: '目前專案：{n}', left: '未選擇專案', ctxHead: '專案「{n}」的背景資料', instrHead: '專案指示' },
+    zh: { emptyTitle: '还没有项目', newProject: '新项目', editProject: '编辑项目', name: '名称', namePh: '例：网站上线', desc: '说明', descPh: '这个项目是做什么的？', instr: '指示', instrPh: '助手在这个项目中应如何回答：背景、语气、格式…', role: '默认角色', files: '文件', filesHint: '文本、Markdown、CSV、JSON 或代码・每个文件最多 200 KB，会作为本项目对话的背景资料。', addFiles: '添加文件', noFiles: '还没有文件', remove: '移除', cancel: '取消', save: '保存', create: '创建项目', del: '删除', delTitle: '要删除项目吗？', delBody: '「{n}」及其文件将被删除。对话会保留，但不再属于任何项目。', edit: '编辑', exit: '退出', label: '项目', chatsN: '{n} 个对话', chat1: '1 个对话', filesN: '{n} 个文件', file1: '1 个文件', empty: '按主题整理对话、指示与文件。', nameReq: '请给项目起个名字。', tooBig: '{f}：文件太大（最多 200 KB）', notText: '{f}：不支持的格式', created: '项目已创建', saved: '项目已保存', deleted: '项目已删除', switched: '当前项目：{n}', left: '未选择项目', ctxHead: '项目「{n}」的背景资料', instrHead: '项目指示' }
   };
   function pt(k) {
-    var l = (window.TA && TA.lang) ? TA.lang() : 'es';
-    var d = PROJ_I18N[l] || PROJ_I18N[l === 'es' || l === 'ca' ? l : 'en'] || PROJ_I18N.en;
+    var d = uiLangDict(PROJ_I18N);
     return d[k] != null ? d[k] : PROJ_I18N.en[k];
   }
   function projectById(id) { if (!id) return null; for (var i = 0; i < projects.length; i++) if (projects[i] && projects[i].id === id) return projects[i]; return null; }
@@ -5981,7 +5991,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var toast = document.getElementById('share-toast');
       if (toast) toast.style.display = 'block';
       var btn = document.getElementById('share-copy-btn');
-      if (btn) { btn.textContent = 'Copiado'; setTimeout(function() { btn.textContent = 'Copiar'; }, 1800); }
+      if (btn) { btn.textContent = artT('copied'); setTimeout(function() { btn.textContent = artT('copy'); }, 1800); }
     }
   }
 
@@ -6429,8 +6439,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var codeCopy = e.target.closest('.code-copy-btn');
       if (codeCopy) {
         navigator.clipboard.writeText(decodeURIComponent(codeCopy.getAttribute('data-code') || '')).then(function() {
-          codeCopy.textContent = 'Copiado';
-          setTimeout(function() { codeCopy.textContent = 'Copiar'; }, 1800);
+          codeCopy.textContent = artT('copied');
+          setTimeout(function() { codeCopy.textContent = artT('copy'); }, 1800);
         }).catch(function() {});
         return;
       }
