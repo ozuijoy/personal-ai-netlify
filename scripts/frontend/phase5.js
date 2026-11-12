@@ -11,6 +11,29 @@
     if (!st.configured) return '未使用：知識庫只用關鍵字檢索。要開啟語意檢索，請選擇供應商與嵌入模型後按「儲存並測試」。';
     return '已索引 ' + st.embedded + ' / ' + st.total + ' 段' + (st.pending ? '，' + st.pending + ' 段待處理' : '') + '（' + st.model + (st.dims ? '，' + st.dims + ' 維' : '') + '）';
   }
+  function kwStatusText(st) {
+    var eng = st.engine === 'bm25' ? '目前使用：中文斷詞＋BM25' : '目前使用：二字組';
+    if (st.mode !== 'bigram' && !st.bm25_available) eng += '（資料庫尚未啟用 BM25，需在 Neon 套用 0004_cjk_bm25）';
+    return eng;
+  }
+  async function loadKeywordPane() {
+    var card = document.getElementById('kw-card');
+    if (!card) return;
+    card.style.display = serverMode() ? '' : 'none';
+    if (!serverMode()) return;
+    try {
+      var st = (await storeFetch('GET', '/api/search/status')).status;
+      document.getElementById('kw-mode').value = st.mode || 'auto';
+      p5Status('kw-status', kwStatusText(st), st.mode !== 'bigram' && !st.bm25_available);
+    } catch(e) { p5Status('kw-status', '讀取失敗：' + (e.message || ''), true); }
+  }
+  async function saveKeywordMode() {
+    var mode = document.getElementById('kw-mode').value;
+    try {
+      var r = await storeFetch('PUT', '/api/search/config', { keyword: mode });
+      p5Status('kw-status', '已儲存。' + kwStatusText(r.status), r.status.mode !== 'bigram' && !r.status.bm25_available);
+    } catch(e) { p5Status('kw-status', '儲存失敗：' + (e.message || ''), true); }
+  }
   async function loadEmbeddingPane() {
     var card = document.getElementById('embed-card');
     if (!card) return;

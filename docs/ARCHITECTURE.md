@@ -81,7 +81,7 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 
 ## 2. Neon 資料表
 
-完整 SQL：`db/migrations/0001_init.sql`、`0002_vectors.sql`、`0003_model_kinds.sql`（已用 PGlite 實際執行並通過測試）。
+完整 SQL：`db/migrations/0001_init.sql`、`0002_vectors.sql`、`0003_model_kinds.sql`、`0004_cjk_bm25.sql`（0001–0003 已用 PGlite 實際執行並通過測試；0004 在 PGlite 上會略過，只以替身物件測試查詢）。
 
 | 表 | 用途 | 重點欄位 |
 |---|---|---|
@@ -143,6 +143,9 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 ### 3.3 檢索
 
 - 第一版（已實作）：查詢拆成英數字詞＋中文二字組（bigram），以命中數＋標題加權＋`simple` 全文分數排序。PostgreSQL 內建全文檢索不會斷中文；實測 pg_trgm 對短中文查詢相似度只有 0.2，不適合當主要依據。個人知識庫規模（數千塊）順序掃描即可。
+- 中文斷詞＋BM25（0004，`src/keyword_search.js`）：Neon Lakebase Search 的 `lakebase_tokenizer`（`tokenizer_chinese`，Lindera＋Jieba，`mixed` 模式）產生 `doc_chunks.tsv_zh`（產生欄位，設定 `public.pa_zh` 複製自 `tokenizer_chinese`），`lakebase_text` 的 `lakebase_bm25` 索引 `doc_chunks_bm25` 排序。查詢：`tsv_zh <@> to_bm25query(to_tsvector('public.pa_zh', q), 'doc_chunks_bm25')`，升冪＝最相關；內層只掃 `doc_chunks`（owner 過濾、LIMIT 200）讓索引做 top-K，外層再接 documents 過濾已刪除與專案，排除分數 0 的列。需 Postgres 16+；資料庫沒有擴充套件時 0004 略過。官方文件：https://neon.com/docs/extensions/lakebase-tokenizer 、https://neon.com/docs/extensions/lakebase-text 。
+- 引擎選擇：`settings['search.keyword']`（`auto`／`bm25`／`bigram`）＞環境變數 `KEYWORD_SEARCH`＞`auto`。`auto`：有索引用 BM25，BM25 無結果（`keyword_fallback: 'bm25_empty'`）或出錯（`keyword_error`）時同次查詢改用二字組；`bm25`：無結果不退回，出錯或未啟用仍退回並附 `keyword_error`；`bigram`：只用二字組。可用性檢查（`to_regclass('public.doc_chunks_bm25')`＋`pa_zh` 存在）每個 db 物件快取 60 秒，BM25 出錯時清快取。`hybridSearch` 回應加 `keyword_engine`。API：`GET /api/search/status`、`PUT /api/search/config {keyword}`；面板「供應商」分頁「關鍵字檢索」卡片。
+- 風險：Jieba 詞典對繁體中文效果未實測；BM25 不加權標題；BM25 統計由 VACUUM 更新、非 MVCC（官方），0004 將 `doc_chunks` 的 `autovacuum_vacuum_insert_scale_factor` 設 0；備份不含 doc_chunks，不受產生欄位影響。
 - 第二版（第五階段，選用）：`CREATE EXTENSION vector`（Neon 支援 pgvector 0.8），`doc_chunks` 加 `embedding vector(N)`＋HNSW 索引，用使用者自己的供應商產生嵌入，和關鍵字分數混合排序。維度依所選嵌入模型決定，所以延後。
 
 ## 3.4 技能與記憶（第四階段，已完成）

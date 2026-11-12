@@ -7,7 +7,8 @@
 // - 檢索：關鍵字結果與向量結果用 RRF（Reciprocal Rank Fusion）合併；向量不可用時自動退回關鍵字。
 import { fetchWithTimeout, normalizeBaseUrl, upstreamHeaders } from './providers.js'
 import { embeddingModelOptions, providerCredentials, OWNER } from './repo/providers.js'
-import { getSettings, putSettings, searchDocuments } from './repo/entities.js'
+import { getSettings, putSettings } from './repo/entities.js'
+import { keywordSearch } from './keyword_search.js'
 
 export const EMBED_BATCH = 32
 export const EMBED_INPUT_CHARS = 6000
@@ -151,16 +152,21 @@ export function rrfMerge(lists, limit) {
 /** 混合檢索：關鍵字 + 向量（若已設定），回傳 {results, mode, vector_error?}。 */
 export async function hybridSearch(db, env, query, { projectId, limit = 6, minSimilarity = 0.2 } = {}, ownerId = OWNER) {
   const n = Math.min(20, Math.max(1, Number(limit) || 6))
-  const keyword = await searchDocuments(db, query, { projectId, limit: 20 }, ownerId)
+  const kw = await keywordSearch(db, env, query, { projectId, limit: 20 }, ownerId)
+  const keyword = kw.results
+  // 關鍵字引擎資訊：keyword_engine 'bm25'|'bigram'，必要時附 keyword_error / keyword_fallback
+  const meta = { keyword_engine: kw.engine }
+  if (kw.keyword_error) meta.keyword_error = kw.keyword_error
+  if (kw.keyword_fallback) meta.keyword_fallback = kw.keyword_fallback
   let config = null
   try { config = await getEmbeddingConfig(db, env, ownerId) } catch {}
-  if (!config || !String(query || '').trim()) return { results: keyword.slice(0, n), mode: 'keyword' }
+  if (!config || !String(query || '').trim()) return { results: keyword.slice(0, n), mode: 'keyword', ...meta }
   try {
     const [vec] = await embedTexts(db, env, config, [String(query).slice(0, 2000)], ownerId)
     const vector = (await vectorSearch(db, toVectorLiteral(vec), config, { projectId, limit: 20 }, ownerId))
       .filter((r) => Number(r.similarity) >= minSimilarity)
-    return { results: rrfMerge([keyword, vector], n), mode: 'hybrid' }
+    return { results: rrfMerge([keyword, vector], n), mode: 'hybrid', ...meta }
   } catch (err) {
-    return { results: keyword.slice(0, n), mode: 'keyword', vector_error: String(err.message || err).slice(0, 300) }
+    return { results: keyword.slice(0, n), mode: 'keyword', ...meta, vector_error: String(err.message || err).slice(0, 300) }
   }
 }

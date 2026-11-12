@@ -3,11 +3,11 @@
 [`scupro/personal-ai`](https://github.com/scupro/personal-ai)（Cloudflare Workers + D1）的移植版，改用 **Netlify Functions / Edge Functions + Neon Postgres**。
 資料以伺服器為主（不再依賴瀏覽器 localStorage），API Key 在伺服器端以 AES-256-GCM 加密。
 
-> **狀態：五個階段已在本機完成，52 項測試通過，尚未部署。**
+> **狀態：五個階段已在本機完成，58 項測試通過，尚未部署。**
 > 部署前仍需實測：真實 Neon（含 pgvector）、Neon Object Storage、Edge 串流超過 60 秒、實際使用的供應商（聊天與嵌入）端點。
 
 - 完整架構與設計理由：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- 資料表：[`db/migrations/0001_init.sql`](db/migrations/0001_init.sql)、[`db/migrations/0002_vectors.sql`](db/migrations/0002_vectors.sql)、[`db/migrations/0003_model_kinds.sql`](db/migrations/0003_model_kinds.sql)
+- 資料表：[`db/migrations/0001_init.sql`](db/migrations/0001_init.sql)、[`db/migrations/0002_vectors.sql`](db/migrations/0002_vectors.sql)、[`db/migrations/0003_model_kinds.sql`](db/migrations/0003_model_kinds.sql)、[`db/migrations/0004_cjk_bm25.sql`](db/migrations/0004_cjk_bm25.sql)
 
 ---
 
@@ -20,7 +20,7 @@
 | 供應商與模型 | **沒有內建供應商**。來源只有兩種：設定面板新增（Key 加密存資料庫）與 `PROVIDER_N_*` 環境變數（唯讀，Key 不進資料庫也不到瀏覽器）。任何 OpenAI 相容服務皆可，**允許空 API Key**（自架模型）；聊天模型與嵌入模型分開設定；模型選單**依供應商分組**；預設模型在面板選；可從供應商自動探索模型 |
 | 資料 | 個人資料、設定、介面偏好、對話、專案、Prompt、知識庫文件全部存 Neon |
 | 檔案 | 瀏覽器以 presigned URL 直傳物件儲存（不經 Function）；PDF（pdf.js）與 DOCX（mammoth）在瀏覽器端抽文字，伺服器切塊（約 1200 字、重疊 150）寫入知識庫 |
-| 檢索 | 關鍵字（英數詞＋中文二字組＋全文分數）＋語意向量，以 RRF（k=60）合併；嵌入失敗自動退回關鍵字 |
+| 檢索 | 關鍵字＋語意向量，以 RRF（k=60）合併；嵌入失敗自動退回關鍵字。關鍵字預設用 Neon 中文斷詞＋BM25（0004），未啟用、沒結果或出錯時退回二字組（英數詞＋中文二字組＋全文分數），可在面板切換 |
 | 語意嵌入 | **預設關閉**（只用關鍵字）；在面板選任一供應商的嵌入模型即開啟（例如 Cloudflare Workers AI `@cf/baai/bge-m3`、Cohere `embed-v5.0-pro`、OpenAI `text-embedding-3-small`） |
 | 技能 | 自訂技能由伺服器注入系統提示（always／keyword／手動）；輸入框可選技能，前端無法偽造 |
 | 記憶 | 長期記憶由伺服器注入；對話後可產生「記憶建議」，**使用者確認後才寫入** |
@@ -57,7 +57,7 @@ src/backup.js                          匯出與還原
 src/repo/                              providers / entities / conversations / files / context / login
 src/migrate/d1.js                      舊 D1 sync_items → Neon
 src/web_decoded.html                   前端原始檔（npm run build 產生 public/assets）
-db/migrations/                         0001 基礎資料表、0002 向量、0003 模型分聊天／嵌入
+db/migrations/                         0001 基礎資料表、0002 向量、0003 模型分聊天／嵌入、0004 中文斷詞＋BM25（僅 Neon）
 scripts/                               migrate、D1 匯入、rekey、bucket CORS、前端建置
 test/                                  node:test；資料庫測試以 PGlite 實跑 SQL，前端以 jsdom
 ```
@@ -74,7 +74,8 @@ test/                                  node:test；資料庫測試以 PGlite 實
 | `/api/models`、`/api/models/grouped` | 用 Base URL 探索模型（舊前端）；聊天模型選單（依供應商分組，只含聊天模型） |
 | `/api/profile`、`/api/settings` | 個人資料、設定 |
 | `/api/conversations`、`/:id`、`/:id/messages` | 對話與訊息 |
-| `/api/documents/search` | 知識庫檢索（混合） |
+| `/api/documents/search` | 知識庫檢索（混合）；回應含 `keyword_engine`（`bm25`／`bigram`），必要時附 `keyword_error`、`keyword_fallback` |
+| `/api/search/status`、`/api/search/config` | 關鍵字引擎狀態 `{mode, bm25_available, engine}`；設定 `{keyword: 'auto'|'bm25'|'bigram'}`，`null` 回到預設 |
 | `/api/files`、`/:id/complete`、`/:id/download` | 上傳（presign）、完成、下載 |
 | `/api/memories`、`/api/memories/suggest` | 記憶、記憶建議 |
 | `/api/embeddings/status`、`/config`、`/backfill` | 嵌入狀態（含各供應商嵌入模型 `options`）、設定 `{provider_id, model}` 或 `{reset:true}` 關閉、補建向量 |
@@ -95,6 +96,7 @@ test/                                  node:test；資料庫測試以 PGlite 實
 | `SESSION_DAYS` | | 預設 30 |
 | `SESSION_VERSION` | | 改值即登出所有裝置 |
 | `TAVILY_API_KEY` | | 網路搜尋工具 |
+| `KEYWORD_SEARCH` | | 關鍵字引擎預設值 `auto`／`bm25`／`bigram`，預設 `auto`；面板設定優先，見[中文斷詞與 BM25 檢索](#中文斷詞與-bm25-檢索) |
 | `PROVIDER_N_NAME` | 該組必填 | 環境變數供應商名稱，`N` = 1–20，見[用環境變數設定供應商](#用環境變數設定供應商) |
 | `PROVIDER_N_BASE_URL` | 該組必填 | OpenAI 相容基底網址（HTTPS） |
 | `PROVIDER_N_API_KEY` | | 該組的 API Key，可留空 |
@@ -114,7 +116,7 @@ test/                                  node:test；資料庫測試以 PGlite 實
 
 ```bash
 npm install
-npm test                 # 52 項；不需要真的資料庫（PGlite）
+npm test                 # 58 項；不需要真的資料庫（PGlite）
 npm run gen:key          # 產生 ENCRYPTION_KEY
 npm run build            # 由 src/web_decoded.html 產生 public/
 DATABASE_URL=... npm run db:migrate
@@ -123,7 +125,7 @@ npm run dev              # netlify dev
 
 ## 部署步驟
 
-1. **Neon**：建立專案（區域建議 AWS `us-east-2`，與 Netlify Functions 預設區域相同），取得 pooled `DATABASE_URL`，執行 `npm run db:migrate`（套用 0001–0003；已部署過的資料庫要先跑一次以套用 `0003_model_kinds.sql`，再部署新版程式）。`0002_vectors.sql` 需要 pgvector 擴充。
+1. **Neon**：建立專案（區域建議 AWS `us-east-2`，與 Netlify Functions 預設區域相同），取得 pooled `DATABASE_URL`，執行 `npm run db:migrate`（套用 0001–0004；已部署過的資料庫要先跑一次以套用 `0003_model_kinds.sql`，再部署新版程式）。`0004_cjk_bm25.sql` 需要 Postgres 16 以上，見[中文斷詞與 BM25 檢索](#中文斷詞與-bm25-檢索)。`0002_vectors.sql` 需要 pgvector 擴充。
 2. **物件儲存**（選用）：依[設定物件儲存](#設定物件儲存)建立 bucket 與憑證、填環境變數並設定 CORS。
 3. **Netlify**：連接本倉庫，build 指令 `npm run build`、publish 目錄 `public`（已寫在 `netlify.toml`），填入環境變數（要用環境變數供應商就加上 `PROVIDER_N_*`）。
 4. **先用 Deploy Preview 實測**（不耗 credits），確認登入、聊天串流、檔案上傳、檢索都正常，再做正式部署。
@@ -327,6 +329,66 @@ node scripts/storage-cors.mjs https://你的站.netlify.app
 ```
 
 來源要寫成 `https://網域`（不含路徑）；本機測試可另加 `http://localhost:8888`。
+
+## 中文斷詞與 BM25 檢索
+
+知識庫的關鍵字檢索預設改用 Neon Lakebase Search 的兩個擴充套件（[Lakebase Search](https://neon.com/docs/ai/lakebase-search)）：
+
+- `lakebase_tokenizer`：內建 `tokenizer_chinese` 設定，用 Lindera 分析器與 Jieba 詞典斷中文詞（`mixed` 模式，會另外加入詞典裡的二、三字子詞），產生標準 `tsvector`（[lakebase_tokenizer](https://neon.com/docs/extensions/lakebase-tokenizer)）。
+- `lakebase_text`：`lakebase_bm25` 索引，用整個知識庫的詞頻與段落長度做 BM25 排序（[lakebase_text](https://neon.com/docs/extensions/lakebase-text)）。
+
+原本的二字組檢索保留為退路，並可在面板固定使用。
+
+### 啟用
+
+1. Neon 專案要用 **Postgres 16 以上**（兩個擴充套件都不支援 14、15）。官方文件沒有標示需要付費方案。
+2. 執行 `npm run db:migrate`。`0004_cjk_bm25.sql` 會：
+   - 建立 `tokenizer_ext` schema，安裝 `lakebase_tokenizer`（裝在 `tokenizer_ext`）與 `lakebase_text`；
+   - 建立文字檢索設定 `public.pa_zh`（複製 `tokenizer_chinese`）；
+   - 在 `doc_chunks` 新增產生欄位 `tsv_zh`（既有段落當下算好，之後自動產生）；
+   - 建立 `doc_chunks_bm25`（`lakebase_bm25`）索引，並把 `doc_chunks` 的 `autovacuum_vacuum_insert_scale_factor` 設為 0（官方建議，讓 VACUUM 及時更新 BM25 統計）。
+3. 資料庫沒有這兩個擴充套件時，0004 會印出 NOTICE 後略過，不會失敗；程式自動用二字組。
+4. 確認：設定 → 供應商 → 「關鍵字檢索」卡片顯示「目前使用：中文斷詞＋BM25」，或在 Neon SQL Editor 執行：
+
+```sql
+SELECT to_tsvector('public.pa_zh', '東京與京都五天行程，第三天去嵐山看竹林');
+```
+
+大量匯入文件後，可手動執行一次 `VACUUM doc_chunks;` 讓 BM25 分數準確。
+
+### 切換引擎
+
+| 模式 | 行為 |
+|---|---|
+| `auto`（預設） | 有 `doc_chunks_bm25` 就用 BM25；BM25 沒有結果或出錯時，同一次查詢再用二字組找 |
+| `bm25` | 只用 BM25；未啟用或出錯時仍退回二字組，並在回應附 `keyword_error` |
+| `bigram` | 只用原本的二字組檢索，完全不碰 BM25 |
+
+設定方式（優先順序由高到低）：
+
+1. 設定面板「供應商」分頁的「關鍵字檢索」卡片。
+2. API：`PUT /api/search/config`，body `{"keyword": "bigram"}`；`{"keyword": null}` 清除面板設定。
+3. 環境變數 `KEYWORD_SEARCH`。
+
+### `KEYWORD_SEARCH`
+
+- 內容：面板沒有設定時的關鍵字引擎。
+- 格式：`auto`、`bm25` 或 `bigram`（不分大小寫）；其他值視為未設定。
+- 預設：`auto`。
+
+```
+KEYWORD_SEARCH=bigram
+```
+
+### 限制
+
+- **繁體中文未實測**：`tokenizer_chinese` 用 Jieba 詞典，官方範例都是簡體；繁體詞可能斷得較碎或沒收錄。查詢與段落用同一套設定斷詞，所以多半仍能命中；`auto` 模式在 BM25 沒結果時會退回二字組。建議部署後用自己的資料測試，不理想就切回 `bigram`。
+- BM25 不再加權標題（二字組模式有）。語意檢索開啟時，兩者照舊以 RRF 合併。
+- 官方說明：BM25 統計在建索引時計算、之後由 VACUUM 更新，不是 MVCC 版本化；剛寫入的段落分數可能暫時不準。
+- 連續超過 682 個中日韓字元、中間沒有空白或標點的片段，會被略過不進 `tsvector`（官方：每個 parser token 上限 2046 bytes）。
+- `mixed` 模式下應使用 `plainto_tsquery` 類查詢；本程式以 `to_tsvector` 產生查詢詞並交給 `to_bm25query`，不使用片語查詢。
+- 本機測試（PGlite）沒有這兩個擴充套件，只能用替身物件驗證 SQL 與退路；**尚未在真實 Neon 上執行過**。
+- 要完全移除：切到 `bigram` 即可；若要刪除資料庫物件，執行 `DROP INDEX doc_chunks_bm25; ALTER TABLE doc_chunks DROP COLUMN tsv_zh; DROP TEXT SEARCH CONFIGURATION public.pa_zh;`。
 
 ## API Key 加密金鑰輪替
 

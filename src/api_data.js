@@ -17,6 +17,7 @@
 //   POST   /api/files/:id/complete      {text?, title?, extract, pages?} 上傳完成、寫入知識庫
 //   GET    /api/files/:id/download[?inline=1]  → {url}（presigned GET，5 分鐘）
 //   DELETE /api/files/:id
+//   GET    /api/search/status           PUT /api/search/config {keyword: 'auto'|'bm25'|'bigram'|null}（關鍵字引擎）
 //   GET    /api/embeddings/status       PUT /api/embeddings/config {provider_id, model} | {reset:true}（關閉）   POST /api/embeddings/backfill
 //   GET    /api/admin/keys              POST /api/admin/rekey（金鑰輪替後重新加密）
 //   GET    /api/backup[?table=&cursor=] 分頁匯出   POST /api/backup/restore {table, rows}
@@ -40,6 +41,7 @@ import { completeFile, createPendingFile, deleteFile, getFile, listFiles, maxUpl
 import { createStorage } from './storage.js'
 import { handleMemorySuggest } from './memory_suggest.js'
 import { backfillEmbeddings, embeddingStatus, hybridSearch, setEmbeddingConfig } from './embeddings.js'
+import { keywordStatus, setKeywordMode } from './keyword_search.js'
 import { BACKUP_FORMAT, BACKUP_VERSION, TABLE_ORDER, exportPage, restoreRows } from './backup.js'
 
 const ID = '([A-Za-z0-9_-]{1,100})'
@@ -115,6 +117,12 @@ const ROUTES = [
     ok: true,
     ...(await hybridSearch(db, env, url.searchParams.get('q'), { projectId: url.searchParams.get('project_id') || undefined })),
   })],
+  // 關鍵字檢索引擎（0004：中文斷詞 + BM25；退路為二字組）
+  ['GET', /^\/api\/search\/status$/, async ({ db, env }) => json({ ok: true, status: await keywordStatus(db, env) })],
+  ['PUT', /^\/api\/search\/config$/, async ({ db, env, body }) => {
+    try { await setKeywordMode(db, body?.keyword ?? null) } catch (err) { return errorJson(err.message, err.status || 400, 'bad_request') }
+    return json({ ok: true, status: await keywordStatus(db, env) })
+  }],
   // 語意檢索（第五階段）
   ['GET', /^\/api\/embeddings\/status$/, async ({ db, env }) => json({ ok: true, status: await embeddingStatus(db, env) })],
   ['PUT', /^\/api\/embeddings\/config$/, async ({ db, env, body }) => {
