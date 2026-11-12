@@ -2718,7 +2718,7 @@
       });
       if (!response.ok) {
         var errJson = await response.json().catch(function() { return {}; });
-        throw new Error(errJson.message || ('HTTP ' + response.status));
+        throw new Error(errJson.message || errJson.error || ('HTTP ' + response.status));
       }
       var reader = response.body.getReader();
       var decoder = new TextDecoder();

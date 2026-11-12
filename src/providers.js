@@ -194,6 +194,6 @@ export async function readJsonLimited(response, maxBytes = 200_000) {
 }
 
 export function providerError(status, detail = '') {
-  const message = detail ? `供應商錯誤：${detail}` : `供應商回傳 HTTP ${status}`
+  const message = detail ? `供應商回傳 HTTP ${status}：${detail}` : `供應商回傳 HTTP ${status}`
   return errorJson(message, status === 401 || status === 403 ? 400 : 502, 'provider_error')
 }
