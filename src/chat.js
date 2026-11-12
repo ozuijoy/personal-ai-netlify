@@ -11,7 +11,7 @@ import {
   providerError,
   upstreamHeaders,
 } from './providers.js'
-import { formatSearchContext, searchWeb } from './tools/search.js'
+import { formatSearchContext, limitSearchResults, searchLimits, searchWeb } from './tools/search.js'
 import { bodyErrorMessage, readJsonBody } from './body.js'
 
 function clampText(value, max) {
@@ -141,8 +141,8 @@ export async function handleChat(request, env, { resolveProvider, loadContext } 
   let searchStatus = ''
   if (body.search_web) {
     const query = lastUserText(body).slice(0, 400)
-    const found = await searchWeb(query, env, { maxResults: 5 })
-    searchResults = found.results || []
+    const found = await searchWeb(query, env, { maxResults: searchLimits(env).maxResults })
+    searchResults = limitSearchResults(found.results || [], env)
     searchStatus = found.error || (found.cached ? 'cached' : 'ok')
   }
 

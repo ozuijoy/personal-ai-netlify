@@ -73,6 +73,35 @@ export async function searchWeb(query, env, { maxResults = 5 } = {}) {
   }
 }
 
+function intEnv(v, def, min, max) {
+  const n = Number.parseInt(v, 10)
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def
+}
+
+// 聊天注入用的搜尋上下文上限（可用環境變數調整）：
+// SEARCH_MAX_RESULTS 1–5（預設 3）、SEARCH_SNIPPET_CHARS 100–1200（預設 400）、SEARCH_CONTEXT_CHARS 300–6000（預設 1500，所有摘要合計）。
+export function searchLimits(env = {}) {
+  return {
+    maxResults: intEnv(env.SEARCH_MAX_RESULTS, 3, 1, 5),
+    snippetChars: intEnv(env.SEARCH_SNIPPET_CHARS, 400, 100, MAX_SNIPPET),
+    contextChars: intEnv(env.SEARCH_CONTEXT_CHARS, 1500, 300, 6000),
+  }
+}
+
+export function limitSearchResults(results, env = {}) {
+  const { maxResults, snippetChars, contextChars } = searchLimits(env)
+  const out = []
+  let used = 0
+  for (const r of (Array.isArray(results) ? results : []).slice(0, maxResults)) {
+    const left = contextChars - used
+    if (left < 80) break
+    const content = String(r.content || '').slice(0, Math.min(snippetChars, left))
+    used += content.length
+    out.push({ ...r, content: content.length < String(r.content || '').length ? content + '…' : content })
+  }
+  return out
+}
+
 export function formatSearchContext(results) {
   if (!Array.isArray(results) || !results.length) return ''
   return results.map((r, i) => `[${i + 1}] ${r.title}\n${r.url}\n${r.content}`).join('\n\n')
