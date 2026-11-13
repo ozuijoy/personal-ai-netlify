@@ -1,9 +1,22 @@
 # Personal AI — Netlify 版
 
-[`scupro/personal-ai`](https://github.com/scupro/personal-ai)（Cloudflare Workers + D1）的移植版，改用 **Netlify Functions / Edge Functions + Neon Postgres**。
-資料以伺服器為主（不再依賴瀏覽器 localStorage），API Key 在伺服器端以 AES-256-GCM 加密。
+個人 AI 聊天工作台：接任何 OpenAI 相容模型，搭配知識庫、技能、長期記憶、網頁搜尋與 MCP 工具，資料存在自己的 Neon Postgres。
 
-> **狀態：已正式部署（https://ozagent.netlify.app），含 MCP 工具與伺服器端保存回答；70 項測試通過。**
+**正式站**：[ozagent.netlify.app](https://ozagent.netlify.app)
+
+主要功能：
+
+- **多供應商聊天**：任何 OpenAI 相容服務（含無 API Key 的自架模型），模型選單依供應商分組；Edge 串流，回答由伺服器保存，關頁不遺失。
+- **知識庫**：上傳 PDF／DOCX／文字檔自動抽文字切塊；中文斷詞 BM25＋語意向量混合檢索。
+- **網頁搜尋**：Jina 或 Tavily，只在需要時搜尋，回答只附有引用的來源。
+- **MCP 工具**：接遠端 MCP 伺服器，每次呼叫都要使用者按「允許」。
+- **技能與記憶**：自訂技能注入系統提示；長期記憶由使用者確認後才寫入。
+- **專案與檔案**：專案記錄、對話、檔案存伺服器，跨裝置同步。
+- **安全**：單一密碼登入；API Key 在伺服器端以 AES-256-GCM 加密，可輪替。
+
+技術：Netlify Functions／Edge Functions＋Neon Postgres（pgvector）＋S3 相容物件儲存。由 [`scupro/personal-ai`](https://github.com/scupro/personal-ai)（Cloudflare Workers＋D1）移植而來。
+
+> **狀態**：已正式部署，含 MCP 工具與伺服器端保存回答；70 項測試通過。
 > 尚未實測：真實 MCP 伺服器、Neon Object Storage、中文 BM25（lakebase）、Jina／Tavily 網頁搜尋、用戶端斷線後 Edge 背景保存回答。
 
 - 完整架構與設計理由：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
