@@ -3,7 +3,7 @@
 [`scupro/personal-ai`](https://github.com/scupro/personal-ai)（Cloudflare Workers + D1）的移植版，改用 **Netlify Functions / Edge Functions + Neon Postgres**。
 資料以伺服器為主（不再依賴瀏覽器 localStorage），API Key 在伺服器端以 AES-256-GCM 加密。
 
-> **狀態：五個階段已在本機完成，62 項測試通過，尚未部署。**
+> **狀態：五個階段已在本機完成，63 項測試通過，尚未部署。**
 > 部署前仍需實測：真實 Neon（含 pgvector）、Neon Object Storage、Edge 串流超過 60 秒、實際使用的供應商（聊天與嵌入）端點。
 
 - 完整架構與設計理由：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
@@ -120,7 +120,7 @@ test/                                  node:test；資料庫測試以 PGlite 實
 
 ```bash
 npm install
-npm test                 # 62 項；不需要真的資料庫（PGlite）
+npm test                 # 63 項；不需要真的資料庫（PGlite）
 npm run gen:key          # 產生 ENCRYPTION_KEY
 npm run build            # 由 src/web_decoded.html 產生 public/
 DATABASE_URL=... npm run db:migrate

@@ -74,7 +74,29 @@ function systemPrompt(body, searchResults) {
   return parts.join('\n\n')
 }
 
+// 部分模型的聊天模板（例如 Mistral、Gemma 系列在 vLLM／llama.cpp 上）要求：只有開頭一則 system，
+// 之後 user/assistant 嚴格交替、從 user 開始。歷史裡若有連續同角色（例如上一次失敗只留下使用者訊息、
+// 或目前提問與歷史最後一則重複）、中段 system 或開頭 assistant，模板會丟 400。
+export function normalizeRoles(messages) {
+  const sys = []
+  const rest = []
+  for (const m of messages) {
+    if (m.role === 'system') { sys.push(m.content); continue }
+    const prev = rest[rest.length - 1]
+    if (prev && prev.role === m.role) {
+      if (prev.content.trim() !== m.content.trim()) prev.content += '\n\n' + m.content
+    } else rest.push({ role: m.role, content: m.content })
+  }
+  while (rest.length && rest[0].role !== 'user') rest.shift()
+  const out = sys.length ? [{ role: 'system', content: sys.join('\n\n') }] : []
+  return out.concat(rest)
+}
+
 function messagesForProvider(body, searchResults) {
+  return normalizeRoles(rawMessagesForProvider(body, searchResults))
+}
+
+function rawMessagesForProvider(body, searchResults) {
   if (Array.isArray(body.messages)) {
     const cleaned = cleanMessages(body.messages)
     if (!cleaned.length) throw new Error('沒有可送出的訊息')
