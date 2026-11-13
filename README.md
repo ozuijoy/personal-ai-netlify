@@ -3,7 +3,7 @@
 [`scupro/personal-ai`](https://github.com/scupro/personal-ai)（Cloudflare Workers + D1）的移植版，改用 **Netlify Functions / Edge Functions + Neon Postgres**。
 資料以伺服器為主（不再依賴瀏覽器 localStorage），API Key 在伺服器端以 AES-256-GCM 加密。
 
-> **狀態：五個階段已在本機完成，63 項測試通過，尚未部署。**
+> **狀態：五個階段已在本機完成，64 項測試通過，尚未部署。**
 > 部署前仍需實測：真實 Neon（含 pgvector）、Neon Object Storage、Edge 串流超過 60 秒、實際使用的供應商（聊天與嵌入）端點。
 
 - 完整架構與設計理由：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
@@ -120,7 +120,7 @@ test/                                  node:test；資料庫測試以 PGlite 實
 
 ```bash
 npm install
-npm test                 # 63 項；不需要真的資料庫（PGlite）
+npm test                 # 64 項；不需要真的資料庫（PGlite）
 npm run gen:key          # 產生 ENCRYPTION_KEY
 npm run build            # 由 src/web_decoded.html 產生 public/
 DATABASE_URL=... npm run db:migrate
@@ -403,6 +403,7 @@ KEYWORD_SEARCH=bigram
 - 服務：Jina（`s.jina.ai`）或 Tavily；「自動」會用有 Key 的那個，Jina 優先；也可「關閉」。
 - Key：加密（AES-256-GCM，`ENCRYPTION_KEY`）存在 Neon `settings` 的 `secret.search.<服務>`，不經 `/api/settings` 回傳、不進備份；金鑰輪替時一併重新加密。額度用完時貼上新 Key 按「儲存」即可，不用重新部署。
 - 長度：結果數（1–5，預設 3）、每則字數（100–1200，預設 400）、總字數（300–6000，預設 1500）。Jina 以 `X-Respond-With: no-content` 只取摘要，不抓全文。
+- 查詢：取最後一則使用者訊息；寒暄或過短不搜尋，短追問會帶上前一則使用者訊息。回答下方只列出回答裡實際引用到網址或網域的來源。
 - 退路：面板沒有 Key 時用環境變數 `JINA_API_KEY`、`TAVILY_API_KEY`（需重新部署）。
 
 ### `JINA_API_KEY`

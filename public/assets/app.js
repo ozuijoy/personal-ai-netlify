@@ -1975,6 +1975,16 @@
     if (isNaN(d.getTime())) d = new Date();
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
+  function citedSources(list, text) {
+    var body = String(text || '').toLowerCase();
+    return (list || []).filter(function(s) {
+      var u = String(s && s.url || '').toLowerCase().replace(/\/+$/, '');
+      if (!u) return false;
+      if (body.indexOf(u) >= 0) return true;
+      var host = u.replace(/^https?:\/\//, '').split('/')[0].replace(/^www\./, '');
+      return !!host && body.indexOf(host) >= 0;
+    });
+  }
   function addMessageToDOM(role, content, sources, at, msgIndex, feedback, image) {
     sources = sources || [];
     var container = document.getElementById('chat-container');
@@ -2766,6 +2776,8 @@
         memNote.textContent = t('adaptRemembered') + ' ' + rememberedFacts[0];
         contentCol.appendChild(memNote);
       }
+      // 只顯示回答裡實際引用到的來源（網址或網域出現在回答中）；模型沒有引用任何一個時不顯示來源框
+      if (sources && sources.length) sources = citedSources(sources, fullText);
       if (sources && sources.length > 0 && contentCol) {
         var srcBox = document.createElement('div');
         srcBox.className = 'sources-box';
