@@ -3,7 +3,7 @@
 [`scupro/personal-ai`](https://github.com/scupro/personal-ai)（Cloudflare Workers + D1）的移植版，改用 **Netlify Functions / Edge Functions + Neon Postgres**。
 資料以伺服器為主（不再依賴瀏覽器 localStorage），API Key 在伺服器端以 AES-256-GCM 加密。
 
-> **狀態：第一版已正式部署（https://ozjoy-ai.netlify.app）；MCP 工具（下一版）已在本機完成，67 項測試通過，尚未部署。**
+> **狀態：第一版已正式部署（https://ozjoy-ai.netlify.app）；MCP 工具與伺服器端保存回答（下一版）已在本機完成，70 項測試通過，尚未部署。**
 > 部署前仍需實測：真實 Neon（含 pgvector）、Neon Object Storage、Edge 串流超過 60 秒、實際使用的供應商（聊天與嵌入）端點。
 
 - 完整架構與設計理由：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
@@ -16,7 +16,7 @@
 | 類別 | 內容 |
 |---|---|
 | 登入 | 單一密碼登入；HMAC 簽章 session cookie（驗證不查資料庫）；登入失敗節流；改 `SESSION_VERSION` 即登出所有裝置 |
-| 聊天 | `/api/chat` 由 Edge Function 串流代理（不受 Functions 60 秒同步上限）；串流結束後前端再寫入訊息 |
+| 聊天 | `/api/chat` 由 Edge Function 串流代理（不受 Functions 60 秒同步上限）。**回答由伺服器收齊後寫入對話**（串流分兩路：一路給瀏覽器、一路在 `context.waitUntil` 背景收集），關掉或重新整理頁面也不會遺失；訊息以 `mid` 去重。按「停止」時以前端保存的部分回答為準，但上游仍會生成到結束（消耗 token） |
 | 供應商與模型 | **沒有內建供應商**。來源只有兩種：設定面板新增（Key 加密存資料庫）與 `PROVIDER_N_*` 環境變數（唯讀，Key 不進資料庫也不到瀏覽器）。任何 OpenAI 相容服務皆可，**允許空 API Key**（自架模型）；聊天模型與嵌入模型分開設定；模型選單**依供應商分組**；預設模型在面板選；可從供應商自動探索模型 |
 | 資料 | 個人資料、設定、介面偏好、對話、專案、Prompt、知識庫文件全部存 Neon |
 | 檔案 | 瀏覽器以 presigned URL 直傳物件儲存（不經 Function）；PDF（pdf.js）與 DOCX（mammoth）在瀏覽器端抽文字，伺服器切塊（約 1200 字、重疊 150）寫入知識庫 |
@@ -122,7 +122,7 @@ test/                                  node:test；資料庫測試以 PGlite 實
 
 ```bash
 npm install
-npm test                 # 67 項；不需要真的資料庫（PGlite）
+npm test                 # 70 項；不需要真的資料庫（PGlite）
 npm run gen:key          # 產生 ENCRYPTION_KEY
 npm run build            # 由 src/web_decoded.html 產生 public/
 DATABASE_URL=... npm run db:migrate

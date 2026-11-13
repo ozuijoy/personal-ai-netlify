@@ -22,7 +22,8 @@ import { loginResponse } from './login_page.js'
 import { htmlResponse } from './html_shell.js'
 import { applySecurityHeaders, previewFrameResponse, sameOriginRequest } from './security.js'
 import { bodyErrorMessage, readFormBody, readJsonBody } from './body.js'
-import { handleChat } from './chat.js'
+import { handleChat, replySaver } from './chat.js'
+import { saveServerMessages } from './repo/conversations.js'
 import { chatContextLoader } from './repo/context.js'
 import { resolveMcpTools } from './mcp.js'
 import { resolveWebSearch } from './web_search_config.js'
@@ -102,6 +103,7 @@ async function apiRoute(request, env, path, method) {
       loadContext: getDb(env) ? chatContextLoader(getDb(env)) : undefined,
       resolveSearch: getDb(env) ? (e) => resolveWebSearch(getDb(e), e) : undefined,
       resolveTools: getDb(env) ? () => resolveMcpTools(getDb(env)) : undefined,
+      saveReply: getDb(env) ? replySaver((input) => saveServerMessages(getDb(env), input)) : undefined,
     })
   }
   if (path === '/api/image') {

@@ -190,7 +190,56 @@ function sseFromJson(data) {
 // loadContext(body, env, text) -> {text, skills, memories}：伺服器注入技能與 Memory（失敗不影響聊天）。
 // resolveProvider(body, env) -> {baseUrl, apiKey, model}；Netlify 版由呼叫端注入（查 Neon + 解密），
 // 未注入時只接受請求內帶的 provider（沒有內建供應商）。
-export async function handleChat(request, env, { resolveProvider, loadContext, resolveSearch, resolveTools } = {}) {
+// 串流 SSE 文字 → 回答全文（OpenAI 相容 delta.content，或本服務的 {content}）。
+export function textFromSse(raw) {
+  let out = ''
+  for (const line of String(raw || '').split('\n')) {
+    const t = line.trim()
+    if (!t.startsWith('data:')) continue
+    const d = t.slice(5).trim()
+    if (!d || d === '[DONE]') continue
+    try {
+      const p = JSON.parse(d)
+      const c = p.content || (p.choices && p.choices[0] && ((p.choices[0].delta && p.choices[0].delta.content) || (p.choices[0].message && p.choices[0].message.content)))
+      if (typeof c === 'string') out += c
+    } catch {}
+  }
+  return out
+}
+
+function cleanPersist(p) {
+  if (!p || typeof p !== 'object') return null
+  const id = String(p.conversation_id || '')
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) return null
+  const mid = (v) => (v != null && /^[A-Za-z0-9_.:-]{1,64}$/.test(String(v)) ? String(v) : '')
+  const user = p.user && mid(p.user.mid) ? { mid: mid(p.user.mid), role: 'user', content: clampText(p.user.content, 200000), at: Number(p.user.at) || Date.now() } : null
+  const assistantMid = mid(p.assistant_mid)
+  if (!assistantMid) return null
+  return { conversation_id: id, title: clampText(p.title, 300), project_id: p.project_id ? String(p.project_id).slice(0, 100) : null, user, assistant_mid: assistantMid }
+}
+
+// 伺服器端保存：上游串流分兩路，一路給瀏覽器、一路在背景收齊後寫入資料庫（關掉頁面也會保存）。
+function persistStream(stream, persist, sources, { saveReply, waitUntil }) {
+  const [toClient, toSave] = stream.tee()
+  const job = (async () => {
+    const reader = toSave.getReader()
+    const dec = new TextDecoder()
+    let raw = ''
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        raw += dec.decode(value, { stream: true })
+        if (raw.length > 4_000_000) break
+      }
+    } catch {}
+    await saveReply(persist, textFromSse(raw), sources)
+  })().catch((err) => console.error('persist reply failed', err && err.message))
+  if (waitUntil) waitUntil(job)
+  return toClient
+}
+
+export async function handleChat(request, env, { resolveProvider, loadContext, resolveSearch, resolveTools, saveReply, waitUntil } = {}) {
   let body
   try {
     body = await readJsonBody(request)
@@ -253,6 +302,8 @@ export async function handleChat(request, env, { resolveProvider, loadContext, r
     max_tokens: Math.min(8192, Math.max(256, Number(body.max_tokens ?? 2048))),
   }
 
+  const persist = saveReply ? cleanPersist(body.persist) : null
+
   let toolCount = 0
   if (resolveTools && body.use_tools !== false) {
     try {
@@ -269,7 +320,8 @@ export async function handleChat(request, env, { resolveProvider, loadContext, r
         method: 'POST',
         headers: upstreamHeaders(provider.apiKey),
         body: JSON.stringify(upstreamBody),
-        signal: request.signal,
+        // 伺服器端保存時不跟著瀏覽器中斷（關頁後仍收完並寫入）；否則瀏覽器停止就中止上游
+        signal: persist ? undefined : request.signal,
       },
       120_000,
     )
@@ -313,7 +365,7 @@ export async function handleChat(request, env, { resolveProvider, loadContext, r
     try {
       const data = await upstream.json()
       const response = sseFromJson(data)
-      const copy = new Response(response.body, response)
+      const copy = new Response(persist ? persistStream(response.body, persist, sources, { saveReply, waitUntil }) : response.body, response)
       for (const [k, v] of Object.entries(headers)) copy.headers.set(k, v)
       return copy
     } catch {
@@ -321,5 +373,16 @@ export async function handleChat(request, env, { resolveProvider, loadContext, r
     }
   }
 
-  return new Response(upstream.body, { headers })
+  return new Response(persist ? persistStream(upstream.body, persist, sources, { saveReply, waitUntil }) : upstream.body, { headers })
+}
+
+/** 保存一則串流回答（與使用者訊息）；回答為空（例如只有工具呼叫）時只存使用者訊息。 */
+export function replySaver(saveServerMessages) {
+  return async (persist, text, sources) => {
+    const messages = []
+    if (persist.user) messages.push(persist.user)
+    if (text && text.trim()) messages.push({ mid: persist.assistant_mid, role: 'assistant', content: text, sources: sources || [], at: Date.now() })
+    if (!messages.length) return
+    await saveServerMessages({ conversation_id: persist.conversation_id, title: persist.title, project_id: persist.project_id, messages })
+  }
 }

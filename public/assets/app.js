@@ -374,7 +374,7 @@
   function chatToServer(id, c) {
     return { id: id, title: String(c.title || '').slice(0, 300), project_id: c.projectId || null, pinned: !!c.pinned, archived: !!c.archived,
       messages: (c.messages || []).map(function(m) {
-        return { role: m.role === 'ai' ? 'assistant' : m.role, content: m.content || '', sources: m.sources || [], at: m.at, image: m.image && String(m.image).length <= 2000 ? m.image : undefined };
+        return { role: m.role === 'ai' ? 'assistant' : m.role, content: m.content || '', sources: m.sources || [], at: m.at, image: m.image && String(m.image).length <= 2000 ? m.image : undefined, mid: m.mid || undefined };
       }) };
   }
   function chatFromServer(sc) {
@@ -383,6 +383,7 @@
       messages: (sc.messages || []).map(function(m) {
         var out = { role: m.role === 'assistant' ? 'ai' : m.role, content: m.content || '', sources: m.sources || [], at: Date.parse(m.created_at) || Date.now() };
         if (m.meta && m.meta.image) out.image = m.meta.image;
+        if (m.meta && m.meta.mid) out.mid = m.meta.mid;
         return out;
       }) };
   }
@@ -2111,8 +2112,9 @@
       if (abortCtl && abortCtl.signal) abortCtl.signal.addEventListener('abort', function() { resolve({ allowed: false, box: box, aborted: true }); });
     });
   }
+  function newMid() { return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
   async function runToolLoop(basePayload, firstText, firstCalls, contentCol, textContainer) {
-    var turns = [];
+    var turns = [], roundMid = '';
     var text = firstText, calls = firstCalls, col = contentCol, tc = textContainer, resp = null, srcs = null;
     for (var round = 0; round < 5 && calls.length; round++) {
       var results = [];
@@ -2141,7 +2143,9 @@
         if (!note.parentNode) ans.box.appendChild(note);
       }
       turns.push({ content: text || '', tool_calls: calls.map(function(c) { return { id: c.id, name: c.name, arguments: c.arguments || '{}' }; }), results: results });
+      var roundMid = newMid();
       var payload2 = Object.assign({}, basePayload, { tool_turns: turns, search_web: false });
+      if (basePayload.persist) payload2.persist = Object.assign({}, basePayload.persist, { user: null, assistant_mid: roundMid });
       var dom = addMessageToDOM('ai', '');
       col = dom.contentCol; tc = dom.textContainer;
       if (tc) tc.innerHTML = '<span class="pulse-cursor"></span>';
@@ -2172,10 +2176,10 @@
       }
       if (tc) tc.innerHTML = renderMarkdown(text);
       calls = calls.filter(Boolean);
-      if (calls.length && text) { chats[currentChatId].messages.push({ role: 'ai', content: text, sources: [], at: Date.now() }); saveChats(); }
+      if (calls.length && text) { chats[currentChatId].messages.push({ role: 'ai', content: text, sources: [], at: Date.now(), mid: roundMid }); saveChats(); }
     }
     if (calls.length && tc) tc.innerHTML = renderMarkdown(text) + '<p class="settings-hint">已達工具呼叫上限（5 回合）。</p>';
-    return { text: text, contentCol: col, textContainer: tc, response: resp, sources: srcs };
+    return { text: text, contentCol: col, textContainer: tc, response: resp, sources: srcs, mid: roundMid };
   }
   function citedSources(list, text) {
     var body = String(text || '').toLowerCase();
@@ -2849,7 +2853,8 @@
     if (!Array.isArray(chats[currentChatId].messages)) chats[currentChatId].messages = [];
     if (chats[currentChatId].title === 'Nueva conversación' && promptText) chats[currentChatId].title = promptText.slice(0, 42);
     var userLabel = promptText || (pendingImage ? t('imageAttached') : 'Documento adjunto');
-    chats[currentChatId].messages.push({ role: 'user', content: userLabel, at: Date.now(), image: pendingImage || undefined });
+    var userMid = newMid(), aiMid = newMid(), userAt = Date.now();
+    chats[currentChatId].messages.push({ role: 'user', content: userLabel, at: userAt, image: pendingImage || undefined, mid: userMid });
     saveChats();
     renderSidebar();
     addMessageToDOM('user', userLabel, null, Date.now(), chats[currentChatId].messages.length - 1, null, pendingImage);
@@ -2920,6 +2925,11 @@
         };
       serverContextPayload(payload);
       if (useServerProvider) payload.provider_id = selectedProviderId;
+      // 伺服器端保存回答：關掉或重新整理頁面，回答仍會寫進對話（以 mid 去重）
+      if (serverMode() && localStorage.getItem('ta_ephemeral') !== '1' && !chats[currentChatId].ephemeral && /^[A-Za-z0-9_-]{1,100}$/.test(String(currentChatId))) {
+        payload.persist = { conversation_id: String(currentChatId), title: chats[currentChatId].title || '', project_id: chats[currentChatId].projectId || null,
+          user: pendingImage ? null : { mid: userMid, content: userLabel, at: userAt }, assistant_mid: aiMid };
+      }
       else if (provider) payload.provider = { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model || selectedModel };
       if (window.TAP) { var tapPreset = TAP.rolePreset(); if (tapPreset) payload.role_preset = tapPreset; }
       if (pendingImage) payload.image = { dataUrl: pendingImage };
@@ -2976,9 +2986,9 @@
       if (textContainer) textContainer.innerHTML = renderMarkdown(fullText);
       if (toolCalls.length) {
         // MCP：模型要求呼叫工具 → 顯示確認卡，使用者允許才執行，結果送回模型繼續回答（最多 5 回合）
-        if (fullText) { chats[currentChatId].messages.push({ role: 'ai', content: fullText, sources: [], at: Date.now() }); saveChats(); }
+        if (fullText) { chats[currentChatId].messages.push({ role: 'ai', content: fullText, sources: [], at: Date.now(), mid: aiMid }); saveChats(); }
         var loopOut = await runToolLoop(payload, fullText, toolCalls.filter(Boolean), contentCol, textContainer);
-        fullText = loopOut.text; contentCol = loopOut.contentCol; textContainer = loopOut.textContainer;
+        fullText = loopOut.text; contentCol = loopOut.contentCol; textContainer = loopOut.textContainer; aiMid = loopOut.mid || aiMid;
         if (loopOut.response) response = loopOut.response;
         if (loopOut.sources) sources = loopOut.sources;
       }
@@ -2998,7 +3008,7 @@
           '</div>';
         contentCol.appendChild(srcBox);
       }
-      chats[currentChatId].messages.push({ role: 'ai', content: fullText, sources: sources, at: Date.now() });
+      chats[currentChatId].messages.push({ role: 'ai', content: fullText, sources: sources, at: Date.now(), mid: aiMid });
       saveChats();
       showAppliedContext(contentCol, response);
       if (fullText) suggestMemories(contentCol, chats[currentChatId].messages.slice(), useServerProvider ? selectedProviderId : '', resolvedModel);
@@ -3022,7 +3032,7 @@
       var aborted = err && (err.name === 'AbortError' || /abort/i.test(err.message || ''));
       if (aborted) {
         if (fullText && chats[currentChatId]) {
-          chats[currentChatId].messages.push({ role: 'ai', content: fullText, sources: sources || [], at: Date.now() });
+          chats[currentChatId].messages.push({ role: 'ai', content: fullText, sources: sources || [], at: Date.now(), mid: aiMid });
           saveChats();
           if (textContainer) textContainer.innerHTML = renderMarkdown(fullText);
         } else if (textContainer) {

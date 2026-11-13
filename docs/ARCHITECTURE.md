@@ -208,6 +208,13 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 - Edge `/api/chat` 以 `resolveTools` 注入 `tools`（`tool_choice: auto`），回應標頭 `X-Tool-Count`；前端累積 `delta.tool_calls`，顯示確認卡，允許後呼叫 `/api/mcp/call`，再以 `tool_turns`（assistant＋tool 訊息，接在 `normalizeRoles` 之後）重送 `/api/chat`，最多 5 回合。執行在 Function（60 秒上限），呼叫逾時 45 秒。
 - 備份還原會略過 `secret.*` 設定。
 
+## 3.9 伺服器端保存回答
+
+- 前端每則訊息有 `mid`；`/api/chat` 帶 `persist {conversation_id, title, project_id, user{mid,content,at}, assistant_mid}`。
+- Edge 把上游串流 `tee()`：一路回瀏覽器，一路在 `context.waitUntil` 收齊、`textFromSse` 取全文，呼叫 `saveServerMessages`（對話不存在則建立；`meta.mid` 已存在就略過；`meta.server_saved=true`）。有 persist 時上游 fetch 不綁瀏覽器的 abort signal。
+- `upsertConversation`（前端整份 PUT）會保留 `server_saved` 且 PUT 中沒有同 `mid` 的訊息（附在最後）；前端一旦送回同 `mid` 即以前端版本為準。
+- 未驗證：Netlify Edge 在用戶端斷線後 `waitUntil` 能撐多久（官方只說 waitUntil 計入 50 ms CPU）；長回答的 `JSON.parse` 成本需實測。MCP 確認仍需頁面開著。
+
 ## 4. 前端改動範圍（第二階段）
 
 前端是單檔 `src/web_decoded.html`（約 31 萬字元），localStorage 鍵約 30 個。策略：**伺服器為主、localStorage 只當快取與離線暫存**，新增一個 `api` 小模組集中所有請求。

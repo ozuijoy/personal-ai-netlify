@@ -17,6 +17,7 @@ function cleanMessage(m) {
   const meta = {}
   if (m.meta && typeof m.meta === 'object') Object.assign(meta, m.meta)
   if (m.image) meta.image = String(m.image).slice(0, 2000) // 舊前端的 image 欄位（URL 或 data URI 摘要）
+  if (m.mid != null && m.mid !== '') meta.mid = String(m.mid).slice(0, 64) // 前端訊息 id：伺服器端保存回答時去重
   const at = Number(m.at || m.created_at)
   return {
     role: normalizeRole(m.role),
@@ -114,8 +115,15 @@ export async function upsertConversation(db, input, ownerId = OWNER) {
     params,
   ]]
   if (Array.isArray(input.messages)) {
+    // 伺服器在串流結束時代存、前端還沒確認（PUT 裡沒有同 mid）的訊息保留在最後，避免被整份覆蓋蓋掉
+    const incoming = new Set(input.messages.map((m) => (m && m.mid != null ? String(m.mid) : m?.meta?.mid ? String(m.meta.mid) : '')).filter(Boolean))
+    const pending = (await db.query(
+      `SELECT role, content, sources, attachments, meta, created_at FROM messages
+        WHERE conversation_id = $1 AND (meta->>'server_saved') = 'true' ORDER BY seq`, [id],
+    )).filter((m) => m.meta && m.meta.mid && !incoming.has(String(m.meta.mid)))
+    const keep = pending.map((m) => ({ role: m.role, content: m.content, sources: m.sources, attachments: m.attachments, meta: m.meta, at: Date.parse(m.created_at) }))
     st.push([`DELETE FROM messages WHERE conversation_id = $1`, [id]])
-    st.push(...insertMessages(id, input.messages, 0))
+    st.push(...insertMessages(id, [...input.messages, ...keep], 0))
   }
   await db.tx(st)
   return getConversation(db, id, ownerId)
@@ -132,6 +140,38 @@ export async function updateConversation(db, id, input, ownerId = OWNER) {
     [id, ownerId, ...Object.values(h)],
   )
   return rows.length ? getConversation(db, id, ownerId) : null
+}
+
+/**
+ * 串流結束時由伺服器呼叫（關掉頁面也會保存）：對話不存在就建立；訊息依 meta.mid 去重（前端已存過就略過）。
+ * input: { conversation_id, title?, project_id?, messages: [{mid, role, content, sources?, at?}] }
+ */
+export async function saveServerMessages(db, input, ownerId = OWNER) {
+  const id = String(input.conversation_id || '')
+  if (!ID_RE.test(id)) return { ok: false, reason: 'bad_id' }
+  const projectId = input.project_id && ID_RE.test(String(input.project_id)) ? await existingProjectId(db, String(input.project_id), ownerId) : null
+  await db.query(
+    `INSERT INTO conversations (id, owner_id, title, project_id) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
+    [id, ownerId, String(input.title || '').slice(0, 300), projectId],
+  )
+  const conv = (await db.query(`SELECT id FROM conversations WHERE id = $1 AND owner_id = $2 AND deleted_at IS NULL`, [id, ownerId]))[0]
+  if (!conv) return { ok: false, reason: 'not_found' }
+  let saved = 0
+  for (const raw of (input.messages || []).slice(0, 4)) {
+    if (!raw || !raw.mid) continue
+    const m = cleanMessage({ ...raw, meta: { server_saved: true } })
+    if (!m) continue
+    const rows = await db.query(
+      `INSERT INTO messages (conversation_id, seq, role, content, sources, attachments, meta, created_at)
+       SELECT $1, COALESCE((SELECT max(seq) FROM messages WHERE conversation_id = $1), -1) + 1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7
+       WHERE NOT EXISTS (SELECT 1 FROM messages WHERE conversation_id = $1 AND meta->>'mid' = $8)
+       RETURNING seq`,
+      [id, m.role, m.content, m.sources, m.attachments, m.meta, m.created_at, String(raw.mid).slice(0, 64)],
+    )
+    saved += rows.length
+  }
+  if (saved) await db.query(`UPDATE conversations SET updated_at = now() WHERE id = $1`, [id])
+  return { ok: true, saved }
 }
 
 /** 串流結束後由前端呼叫：追加一批訊息（通常是 user + assistant 兩則）。 */

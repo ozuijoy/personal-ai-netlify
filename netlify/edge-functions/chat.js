@@ -4,7 +4,8 @@
 // 限制為每次請求 50 ms CPU 與 40 秒內必須送出回應標頭（docs.netlify.com/build/edge-functions/limits）。
 // 這裡只做驗證、查 Key、轉送上游 SSE 位元組，不逐 token 解析，CPU 用量極低。
 // 注意：官方未載明 Edge 串流的總時長上限，部署後需實測長回答（> 60 秒）。
-import { handleChat } from '../../src/chat.js'
+import { handleChat, replySaver } from '../../src/chat.js'
+import { saveServerMessages } from '../../src/repo/conversations.js'
 import { requireAuth } from '../../src/auth.js'
 import { applySecurityHeaders, sameOriginRequest } from '../../src/security.js'
 import { errorJson } from '../../src/config.js'
@@ -14,7 +15,7 @@ import { chatContextLoader } from '../../src/repo/context.js'
 import { resolveWebSearch } from '../../src/web_search_config.js'
 import { resolveMcpTools } from '../../src/mcp.js'
 
-export default async (request) => {
+export default async (request, context) => {
   const env = Netlify.env.toObject()
   let response
   if (request.method !== 'POST') response = errorJson('Method not allowed', 405)
@@ -28,6 +29,9 @@ export default async (request) => {
         loadContext: db ? chatContextLoader(db) : undefined,
         resolveSearch: db ? (e) => resolveWebSearch(db, e) : undefined,
         resolveTools: db ? () => resolveMcpTools(db) : undefined,
+        // 回答在伺服器收齊後寫入（context.waitUntil：回應送出後繼續；仍計入 50 ms CPU）
+        saveReply: db ? replySaver((input) => saveServerMessages(db, input)) : undefined,
+        waitUntil: context && context.waitUntil ? (p) => context.waitUntil(p) : undefined,
       })
     } catch (err) {
       console.error('chat failed', err && err.message)

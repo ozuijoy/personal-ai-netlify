@@ -187,5 +187,6 @@ test('frontend: server-first store, provider import, grouped models, provider_id
   assert.equal(JSON.parse(w.localStorage.getItem('ta_ai_chats')).remote1.messages[0].content, 'from phone')
 
   assert.equal(errors.filter((e) => !/Not implemented|speech|audio/i.test(e)).length, 0, errors.join('\n'))
+  await sleep(2500) // 等延遲 1.5 秒的同步推送跑完，避免關閉視窗後仍有非同步工作
   w.close()
 })
