@@ -1632,9 +1632,16 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
               <input type="text" id="mcp-name" class="form-input" style="width:140px" placeholder="名稱" autocomplete="off">
               <input type="url" id="mcp-url" class="form-input" style="flex:1;min-width:200px" placeholder="https://example.com/mcp" autocomplete="off">
             </div>
+            <label style="display:flex;align-items:center;gap:6px;margin:4px 0 6px;cursor:pointer">
+              <input type="checkbox" id="mcp-auth"> 需要認證（Authorization: Bearer Token）
+            </label>
+            <div id="mcp-auth-fields" style="display:none;margin-bottom:6px">
+              <input type="password" id="mcp-token" class="form-input" style="width:100%" placeholder="Token" autocomplete="off">
+              <details style="margin-top:4px"><summary class="settings-hint" style="cursor:pointer">進階：伺服器要求其他標頭名稱（例如 X-API-Key）</summary>
+                <input type="text" id="mcp-header" class="form-input" style="width:200px;margin-top:4px" placeholder="Authorization" autocomplete="off">
+              </details>
+            </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <input type="text" id="mcp-header" class="form-input" style="width:140px" placeholder="Authorization" autocomplete="off">
-              <input type="password" id="mcp-token" class="form-input" style="flex:1;min-width:160px" placeholder="Token（可留空）" autocomplete="off">
               <button type="button" id="mcp-add-btn" class="topbar-action-btn primary">新增並連線</button>
             </div>
             <p id="mcp-status" class="settings-hint" style="min-height:18px"></p>
@@ -3086,6 +3093,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   async function loadMcpPane() {
     var card = document.getElementById('mcp-card');
     if (!card) return;
+    var authBox = document.getElementById('mcp-auth');
+    if (authBox && !authBox._bound) { authBox._bound = true; authBox.addEventListener('change', function() { document.getElementById('mcp-auth-fields').style.display = authBox.checked ? '' : 'none'; }); }
     card.style.display = serverMode() ? '' : 'none';
     if (!serverMode()) return;
     try {
@@ -3099,15 +3108,17 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     var body = {
       name: document.getElementById('mcp-name').value.trim(),
       url: document.getElementById('mcp-url').value.trim(),
-      header_name: document.getElementById('mcp-header').value.trim() || 'Authorization',
-      token: document.getElementById('mcp-token').value.trim()
+      header_name: (document.getElementById('mcp-auth').checked && document.getElementById('mcp-header').value.trim()) || 'Authorization',
+      token: document.getElementById('mcp-auth').checked ? document.getElementById('mcp-token').value.trim() : ''
     };
+    if (document.getElementById('mcp-auth').checked && !body.token) { p5Status('mcp-status', '已勾選需要認證，請填 Token。', true); return; }
     if (!body.url) { p5Status('mcp-status', '請填寫 MCP 網址', true); return; }
     p5Status('mcp-status', '正在連線…', false);
     try {
       var r = await storeFetch('POST', '/api/mcp/servers', body);
       mcpReplace(r.server);
       ['mcp-name', 'mcp-url', 'mcp-header', 'mcp-token'].forEach(function(id) { document.getElementById(id).value = ''; });
+      document.getElementById('mcp-auth').checked = false; document.getElementById('mcp-auth-fields').style.display = 'none';
       p5Status('mcp-status', r.server.tools_error ? '已新增，但連線失敗，請檢查網址或 Token。' : '已新增，取得 ' + (r.server.tools || []).length + ' 個工具。', !!r.server.tools_error);
     } catch(e) { p5Status('mcp-status', '新增失敗：' + (e.message || ''), true); }
   }

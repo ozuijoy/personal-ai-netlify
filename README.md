@@ -434,7 +434,7 @@ TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxx
 
 ## MCP 工具
 
-設定位置：設定 → 供應商 → 「MCP 工具」卡片。填名稱、網址、標頭名稱（預設 `Authorization`）與 Token（可留空），按「新增並連線」會立刻取得工具清單。
+設定位置：設定 → 供應商 → 「MCP 工具」卡片。填名稱與網址；伺服器需要認證時勾選「需要認證」再填 Token（預設送 `Authorization: Bearer <Token>`，少數伺服器要其他標頭名稱如 `X-API-Key`，在「進階」改）。不勾選就不送任何認證標頭。按「新增並連線」會立刻取得工具清單。
 
 - 傳輸：只支援 **Streamable HTTP**（MCP 規格 2025-06-18，https://modelcontextprotocol.io/specification/2025-06-18/basic/transports ），網址須 HTTPS、不可指向內網。Netlify Functions 不能啟動子行程，所以 stdio（本機指令）類 MCP 伺服器無法使用；舊版 HTTP+SSE（2024-11-05）傳輸也未支援。
 - Token：加密（AES-256-GCM）存在 `settings` 的 `secret.mcp.<id>`，不經 `/api/settings` 回傳、不進備份，金鑰輪替時一併重新加密。標頭為 `Authorization` 且 Token 沒寫 `Bearer` 時自動補上。
