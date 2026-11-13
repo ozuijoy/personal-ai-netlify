@@ -12,6 +12,7 @@ import { getDb } from '../../src/db.js'
 import { resolveChatProvider } from '../../src/repo/providers.js'
 import { chatContextLoader } from '../../src/repo/context.js'
 import { resolveWebSearch } from '../../src/web_search_config.js'
+import { resolveMcpTools } from '../../src/mcp.js'
 
 export default async (request) => {
   const env = Netlify.env.toObject()
@@ -26,6 +27,7 @@ export default async (request) => {
         resolveProvider: (body, e) => resolveChatProvider(db, body, e),
         loadContext: db ? chatContextLoader(db) : undefined,
         resolveSearch: db ? (e) => resolveWebSearch(db, e) : undefined,
+        resolveTools: db ? () => resolveMcpTools(db) : undefined,
       })
     } catch (err) {
       console.error('chat failed', err && err.message)

@@ -24,6 +24,8 @@ import { applySecurityHeaders, previewFrameResponse, sameOriginRequest } from '.
 import { bodyErrorMessage, readFormBody, readJsonBody } from './body.js'
 import { handleChat } from './chat.js'
 import { chatContextLoader } from './repo/context.js'
+import { resolveMcpTools } from './mcp.js'
+import { resolveWebSearch } from './web_search_config.js'
 import { handleImageRequest } from './images.js'
 import { TOOLS, runTool } from './tools/registry.js'
 import { envProviders, fetchWithTimeout, modelsUrl, providerFromBody, upstreamHeaders } from './providers.js'
@@ -98,6 +100,8 @@ async function apiRoute(request, env, path, method) {
     return handleChat(request, env, {
       resolveProvider: (body, e) => resolveChatProvider(getDb(e), body, e),
       loadContext: getDb(env) ? chatContextLoader(getDb(env)) : undefined,
+      resolveSearch: getDb(env) ? (e) => resolveWebSearch(getDb(e), e) : undefined,
+      resolveTools: getDb(env) ? () => resolveMcpTools(getDb(env)) : undefined,
     })
   }
   if (path === '/api/image') {

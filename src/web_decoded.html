@@ -1624,6 +1624,21 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
             </div>
             <p id="ws-status" class="settings-hint" style="min-height:18px"></p>
           </div>
+          <div class="settings-card" id="mcp-card" style="margin-top:14px">
+            <div class="form-label" style="margin-bottom:6px">MCP 工具</div>
+            <p class="settings-hint" style="margin-top:0">連接遠端 MCP 伺服器（Streamable HTTP，需 HTTPS）。模型想用工具時會先在對話中顯示工具與參數，你按「允許」才會執行。Token 加密存在資料庫。本機（stdio）類 MCP 無法在 Netlify 上執行。</p>
+            <div id="mcp-list"></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 6px">
+              <input type="text" id="mcp-name" class="form-input" style="width:140px" placeholder="名稱" autocomplete="off">
+              <input type="url" id="mcp-url" class="form-input" style="flex:1;min-width:200px" placeholder="https://example.com/mcp" autocomplete="off">
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <input type="text" id="mcp-header" class="form-input" style="width:140px" placeholder="Authorization" autocomplete="off">
+              <input type="password" id="mcp-token" class="form-input" style="flex:1;min-width:160px" placeholder="Token（可留空）" autocomplete="off">
+              <button type="button" id="mcp-add-btn" class="topbar-action-btn primary">新增並連線</button>
+            </div>
+            <p id="mcp-status" class="settings-hint" style="min-height:18px"></p>
+          </div>
         </div>
 
         <div id="pane-plan" class="settings-pane">
@@ -3038,6 +3053,102 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       p5Status('ws-status', '已儲存。' + wsStatusText(r.status), !r.status.active);
     } catch(e) { p5Status('ws-status', '儲存失敗：' + (e.message || ''), true); }
   }
+  var mcpServersCache = [];
+  function mcpServerHtml(sv) {
+    var off = {}; (sv.disabled_tools || []).forEach(function(n) { off[n] = 1; });
+    var tools = (sv.tools || []).map(function(t) {
+      return '<label style="display:flex;gap:6px;align-items:flex-start;font-size:0.78rem;margin:2px 0"><input type="checkbox" data-mcp-tool="' + escapeHtml(sv.id) + '" value="' + escapeHtml(t.name) + '"' + (off[t.name] ? '' : ' checked') + '><span><b>' + escapeHtml(t.name) + '</b>' + (t.readOnly ? '（唯讀）' : '') + (t.description ? ' — ' + escapeHtml(String(t.description).slice(0, 140)) : '') + '</span></label>';
+    }).join('');
+    var state = sv.tools_error ? '<span style="color:var(--red)">連線失敗：' + escapeHtml(sv.tools_error) + '</span>' : (sv.tools || []).length + ' 個工具';
+    return '<div class="mcp-server" style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:6px">' +
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
+        '<label style="display:flex;gap:6px;align-items:center;flex:1;min-width:160px"><input type="checkbox" data-mcp-enable="' + escapeHtml(sv.id) + '"' + (sv.enabled ? ' checked' : '') + '><b>' + escapeHtml(sv.name) + '</b></label>' +
+        '<button type="button" class="topbar-action-btn" data-mcp-refresh="' + escapeHtml(sv.id) + '">重新連線</button>' +
+        '<button type="button" class="topbar-action-btn" data-mcp-token="' + escapeHtml(sv.id) + '">換 Token</button>' +
+        '<button type="button" class="topbar-action-btn" data-mcp-del="' + escapeHtml(sv.id) + '">刪除</button>' +
+      '</div>' +
+      '<div class="settings-hint" style="margin:4px 0">' + escapeHtml(sv.url) + (sv.has_token ? '　Token ' + escapeHtml(sv.token_hint || '已設定') : '　無 Token') + '　' + state + '</div>' +
+      (tools ? '<details><summary class="settings-hint" style="cursor:pointer">工具（取消勾選＝不提供給模型）</summary>' + tools + '</details>' : '') +
+    '</div>';
+  }
+  function renderMcpList() {
+    var box = document.getElementById('mcp-list');
+    if (!box) return;
+    box.innerHTML = mcpServersCache.length ? mcpServersCache.map(mcpServerHtml).join('') : '<p class="settings-hint">尚未新增 MCP 伺服器。</p>';
+  }
+  function mcpReplace(sv) {
+    var found = false;
+    mcpServersCache = mcpServersCache.map(function(x) { if (x.id === sv.id) { found = true; return sv; } return x; });
+    if (!found) mcpServersCache.push(sv);
+    renderMcpList();
+  }
+  async function loadMcpPane() {
+    var card = document.getElementById('mcp-card');
+    if (!card) return;
+    card.style.display = serverMode() ? '' : 'none';
+    if (!serverMode()) return;
+    try {
+      var r = await storeFetch('GET', '/api/mcp/servers');
+      mcpServersCache = r.servers || [];
+      renderMcpList();
+      p5Status('mcp-status', r.encryption ? '' : '伺服器未設定 ENCRYPTION_KEY，無法儲存 Token。', !r.encryption);
+    } catch(e) { p5Status('mcp-status', '讀取失敗：' + (e.message || ''), true); }
+  }
+  async function addMcpServer() {
+    var body = {
+      name: document.getElementById('mcp-name').value.trim(),
+      url: document.getElementById('mcp-url').value.trim(),
+      header_name: document.getElementById('mcp-header').value.trim() || 'Authorization',
+      token: document.getElementById('mcp-token').value.trim()
+    };
+    if (!body.url) { p5Status('mcp-status', '請填寫 MCP 網址', true); return; }
+    p5Status('mcp-status', '正在連線…', false);
+    try {
+      var r = await storeFetch('POST', '/api/mcp/servers', body);
+      mcpReplace(r.server);
+      ['mcp-name', 'mcp-url', 'mcp-header', 'mcp-token'].forEach(function(id) { document.getElementById(id).value = ''; });
+      p5Status('mcp-status', r.server.tools_error ? '已新增，但連線失敗，請檢查網址或 Token。' : '已新增，取得 ' + (r.server.tools || []).length + ' 個工具。', !!r.server.tools_error);
+    } catch(e) { p5Status('mcp-status', '新增失敗：' + (e.message || ''), true); }
+  }
+  async function mcpListClick(ev) {
+    var t = ev.target;
+    var id;
+    try {
+      if ((id = t.getAttribute('data-mcp-refresh'))) {
+        p5Status('mcp-status', '正在連線…', false);
+        var r = await storeFetch('POST', '/api/mcp/servers/' + encodeURIComponent(id) + '/refresh');
+        mcpReplace(r.server);
+        p5Status('mcp-status', r.server.tools_error ? '連線失敗。' : '已更新工具清單。', !!r.server.tools_error);
+      } else if ((id = t.getAttribute('data-mcp-del'))) {
+        if (!window.confirm('刪除這個 MCP 伺服器與它的 Token？')) return;
+        await storeFetch('DELETE', '/api/mcp/servers/' + encodeURIComponent(id));
+        mcpServersCache = mcpServersCache.filter(function(x) { return x.id !== id; });
+        renderMcpList();
+        p5Status('mcp-status', '已刪除。', false);
+      } else if ((id = t.getAttribute('data-mcp-token'))) {
+        var tok = window.prompt('貼上新的 Token（留空＝刪除 Token）', '');
+        if (tok === null) return;
+        var r2 = await storeFetch('PATCH', '/api/mcp/servers/' + encodeURIComponent(id), { token: tok.trim() });
+        mcpReplace(r2.server);
+        p5Status('mcp-status', 'Token 已更新。', false);
+      }
+    } catch(e) { p5Status('mcp-status', '操作失敗：' + (e.message || ''), true); }
+  }
+  async function mcpListChange(ev) {
+    var t = ev.target;
+    var id;
+    try {
+      if ((id = t.getAttribute('data-mcp-enable'))) {
+        var r = await storeFetch('PATCH', '/api/mcp/servers/' + encodeURIComponent(id), { enabled: !!t.checked });
+        mcpReplace(r.server);
+      } else if ((id = t.getAttribute('data-mcp-tool'))) {
+        var off = [];
+        document.querySelectorAll('[data-mcp-tool="' + id + '"]').forEach(function(cb) { if (!cb.checked) off.push(cb.value); });
+        var r2 = await storeFetch('PATCH', '/api/mcp/servers/' + encodeURIComponent(id), { disabled_tools: off });
+        mcpReplace(r2.server);
+      }
+    } catch(e) { p5Status('mcp-status', '儲存失敗：' + (e.message || ''), true); }
+  }
   async function loadEmbeddingPane() {
     var card = document.getElementById('embed-card');
     if (!card) return;
@@ -3806,6 +3917,112 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     if (isNaN(d.getTime())) d = new Date();
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
+  function mergeToolCallDeltas(acc, deltas) {
+    deltas.forEach(function(d, k) {
+      var i = typeof d.index === 'number' ? d.index : k;
+      var c = acc[i] || (acc[i] = { id: '', name: '', arguments: '' });
+      if (d.id) c.id = d.id;
+      if (d.function) {
+        if (d.function.name) c.name += d.function.name;
+        if (d.function.arguments) c.arguments += typeof d.function.arguments === 'string' ? d.function.arguments : JSON.stringify(d.function.arguments);
+      }
+    });
+  }
+  function toolLabel(name) {
+    var m = String(name || '').match(/^(mcp[0-9a-f]+)__(.*)$/);
+    if (!m) return { server: '', tool: name };
+    var sv = null;
+    for (var i = 0; i < mcpServersCache.length; i++) if (mcpServersCache[i].id === m[1]) sv = mcpServersCache[i];
+    return { server: sv ? sv.name : 'MCP', tool: m[2] };
+  }
+  function askToolPermission(container, call) {
+    return new Promise(function(resolve) {
+      var lb = toolLabel(call.name);
+      var args = call.arguments || '{}';
+      try { args = JSON.stringify(JSON.parse(args), null, 2); } catch(e) {}
+      var box = document.createElement('div');
+      box.className = 'sources-box mcp-confirm';
+      box.innerHTML = '<div class="sources-title">要執行工具嗎？</div>' +
+        '<div style="font-size:0.85rem;margin:4px 0"><b>' + escapeHtml(lb.tool) + '</b>' + (lb.server ? '（' + escapeHtml(lb.server) + '）' : '') + '</div>' +
+        '<pre style="max-height:220px;overflow:auto;font-size:0.75rem;white-space:pre-wrap;margin:4px 0">' + escapeHtml(args) + '</pre>' +
+        '<div style="display:flex;gap:6px"><button type="button" class="topbar-action-btn primary" data-act="allow">允許</button><button type="button" class="topbar-action-btn" data-act="deny">拒絕</button></div>';
+      if (container) container.appendChild(box);
+      scrollToEnd();
+      box.addEventListener('click', function(ev) {
+        var act = ev.target.getAttribute && ev.target.getAttribute('data-act');
+        if (!act) return;
+        box.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+        resolve({ allowed: act === 'allow', box: box });
+      });
+      if (abortCtl && abortCtl.signal) abortCtl.signal.addEventListener('abort', function() { resolve({ allowed: false, box: box, aborted: true }); });
+    });
+  }
+  async function runToolLoop(basePayload, firstText, firstCalls, contentCol, textContainer) {
+    var turns = [];
+    var text = firstText, calls = firstCalls, col = contentCol, tc = textContainer, resp = null, srcs = null;
+    for (var round = 0; round < 5 && calls.length; round++) {
+      var results = [];
+      for (var i = 0; i < calls.length; i++) {
+        var c = calls[i];
+        if (!c.id) c.id = 'call_' + round + '_' + i;
+        var ans = await askToolPermission(col, c);
+        var note = document.createElement('div');
+        note.className = 'settings-hint';
+        if (ans.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+        if (!ans.allowed) {
+          results.push({ id: c.id, content: '使用者拒絕執行這個工具。' });
+          note.textContent = '已拒絕。';
+        } else {
+          note.textContent = '執行中…';
+          ans.box.appendChild(note);
+          try {
+            var r = await storeFetch('POST', '/api/mcp/call', { name: c.name, arguments: c.arguments });
+            results.push({ id: c.id, content: (r.result.is_error ? '工具回報錯誤：' : '') + r.result.content });
+            note.textContent = r.result.is_error ? '工具回報錯誤。' : '已執行。';
+          } catch(e) {
+            results.push({ id: c.id, content: '工具執行失敗：' + (e.message || '') });
+            note.textContent = '執行失敗：' + (e.message || '');
+          }
+        }
+        if (!note.parentNode) ans.box.appendChild(note);
+      }
+      turns.push({ content: text || '', tool_calls: calls.map(function(c) { return { id: c.id, name: c.name, arguments: c.arguments || '{}' }; }), results: results });
+      var payload2 = Object.assign({}, basePayload, { tool_turns: turns, search_web: false });
+      var dom = addMessageToDOM('ai', '');
+      col = dom.contentCol; tc = dom.textContainer;
+      if (tc) tc.innerHTML = '<span class="pulse-cursor"></span>';
+      resp = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: abortCtl ? abortCtl.signal : undefined, body: JSON.stringify(payload2) });
+      if (!resp.ok) { var ej = await resp.json().catch(function() { return {}; }); throw new Error(ej.message || ej.error || ('HTTP ' + resp.status)); }
+      var reader = resp.body.getReader(), dec = new TextDecoder(), buf = '';
+      text = ''; calls = [];
+      while (true) {
+        var ch = await reader.read();
+        if (ch.done) break;
+        buf += dec.decode(ch.value, { stream: true });
+        var lines = buf.split(String.fromCharCode(10)); buf = lines.pop() || '';
+        for (var j = 0; j < lines.length; j++) {
+          var tr = lines[j].trim();
+          if (!tr.startsWith('data:')) continue;
+          var ds = tr.replace(/^data:\s*/, '');
+          if (ds === '[DONE]') continue;
+          var p; try { p = JSON.parse(ds); } catch(e) { continue; }
+          if (p.error) throw new Error(typeof p.error === 'string' ? p.error : (p.error.message || '供應商錯誤'));
+          var d = p.content;
+          if (!d && p.choices && p.choices[0]) {
+            var cc = p.choices[0];
+            d = (cc.delta && cc.delta.content) || (cc.message && cc.message.content) || '';
+            if (cc.delta && Array.isArray(cc.delta.tool_calls)) mergeToolCallDeltas(calls, cc.delta.tool_calls);
+          }
+          if (d) { text += d; if (tc) { tc.innerHTML = renderMarkdown(text) + '<span class="pulse-cursor"></span>'; scrollToEnd(); } }
+        }
+      }
+      if (tc) tc.innerHTML = renderMarkdown(text);
+      calls = calls.filter(Boolean);
+      if (calls.length && text) { chats[currentChatId].messages.push({ role: 'ai', content: text, sources: [], at: Date.now() }); saveChats(); }
+    }
+    if (calls.length && tc) tc.innerHTML = renderMarkdown(text) + '<p class="settings-hint">已達工具呼叫上限（5 回合）。</p>';
+    return { text: text, contentCol: col, textContainer: tc, response: resp, sources: srcs };
+  }
   function citedSources(list, text) {
     var body = String(text || '').toLowerCase();
     return (list || []).filter(function(s) {
@@ -4490,6 +4707,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     var fullText = '';
     var sources = [];
     var rememberedFacts = [];
+    var toolCalls = [];
     try {
       if (isImgRequest) {
         if (textContainer) textContainer.innerHTML = '<span style="color:var(--purple);font-weight:600;font-size:0.85rem">' + t('genImage') + '</span><span class="pulse-cursor"></span>';
@@ -4588,6 +4806,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
             if (!delta && p.choices && p.choices[0]) {
               var choice = p.choices[0];
               delta = (choice.delta && (choice.delta.content || choice.delta.text)) || (choice.message && choice.message.content) || '';
+              if (choice.delta && Array.isArray(choice.delta.tool_calls)) mergeToolCallDeltas(toolCalls, choice.delta.tool_calls);
             }
             if (p.error) throw new Error(typeof p.error === 'string' ? p.error : (p.error.message || '供應商錯誤'));
             if (delta) {
@@ -4601,6 +4820,14 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
         }
       }
       if (textContainer) textContainer.innerHTML = renderMarkdown(fullText);
+      if (toolCalls.length) {
+        // MCP：模型要求呼叫工具 → 顯示確認卡，使用者允許才執行，結果送回模型繼續回答（最多 5 回合）
+        if (fullText) { chats[currentChatId].messages.push({ role: 'ai', content: fullText, sources: [], at: Date.now() }); saveChats(); }
+        var loopOut = await runToolLoop(payload, fullText, toolCalls.filter(Boolean), contentCol, textContainer);
+        fullText = loopOut.text; contentCol = loopOut.contentCol; textContainer = loopOut.textContainer;
+        if (loopOut.response) response = loopOut.response;
+        if (loopOut.sources) sources = loopOut.sources;
+      }
       if (rememberedFacts.length && contentCol) {
         var memNote = document.createElement('div');
         memNote.className = 'msg-time';
@@ -5710,7 +5937,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   function showSettingsPane(id) {
     if (id === 'pane-skills') loadSkills();
     if (id === 'pane-memory') loadMemories();
-    if (id === 'pane-providers') { loadEmbeddingPane(); loadKeywordPane(); loadWebSearchPane(); }
+    if (id === 'pane-providers') { loadEmbeddingPane(); loadKeywordPane(); loadWebSearchPane(); loadMcpPane(); }
     if (id === 'pane-data') { loadKeyStatus(); var bc = document.getElementById('backup-card'); if (bc) bc.style.display = serverMode() ? '' : 'none'; }
     document.querySelectorAll('.settings-pane').forEach(function(p) { p.classList.toggle('active', p.id === id); });
     document.querySelectorAll('.settings-nav-btn').forEach(function(b) { b.classList.toggle('active', b.getAttribute('data-pane') === id); });
@@ -6395,6 +6622,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       if (byId('kw-save-btn')) byId('kw-save-btn').addEventListener('click', saveKeywordMode);
       if (byId('ws-save-btn')) byId('ws-save-btn').addEventListener('click', function() { saveWebSearch(false); });
       if (byId('ws-key-clear-btn')) byId('ws-key-clear-btn').addEventListener('click', function() { saveWebSearch(true); });
+      if (byId('mcp-add-btn')) byId('mcp-add-btn').addEventListener('click', addMcpServer);
+      if (byId('mcp-list')) { byId('mcp-list').addEventListener('click', mcpListClick); byId('mcp-list').addEventListener('change', mcpListChange); }
       if (byId('rekey-btn')) byId('rekey-btn').addEventListener('click', rekeyNow);
       if (byId('backup-download-btn')) byId('backup-download-btn').addEventListener('click', downloadServerBackup);
       if (byId('backup-restore-btn')) byId('backup-restore-btn').addEventListener('click', function() { byId('backup-restore-input').click(); });

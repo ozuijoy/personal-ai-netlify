@@ -3,7 +3,7 @@
 [`scupro/personal-ai`](https://github.com/scupro/personal-ai)（Cloudflare Workers + D1）的移植版，改用 **Netlify Functions / Edge Functions + Neon Postgres**。
 資料以伺服器為主（不再依賴瀏覽器 localStorage），API Key 在伺服器端以 AES-256-GCM 加密。
 
-> **狀態：五個階段已在本機完成，64 項測試通過，尚未部署。**
+> **狀態：第一版已正式部署（https://ozjoy-ai.netlify.app）；MCP 工具（下一版）已在本機完成，67 項測試通過，尚未部署。**
 > 部署前仍需實測：真實 Neon（含 pgvector）、Neon Object Storage、Edge 串流超過 60 秒、實際使用的供應商（聊天與嵌入）端點。
 
 - 完整架構與設計理由：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
@@ -24,6 +24,7 @@
 | 語意嵌入 | **預設關閉**（只用關鍵字）；在面板選任一供應商的嵌入模型即開啟（例如 Cloudflare Workers AI `@cf/baai/bge-m3`、Cohere `embed-v5.0-pro`、OpenAI `text-embedding-3-small`） |
 | 技能 | 自訂技能由伺服器注入系統提示（always／keyword／手動）；輸入框可選技能，前端無法偽造 |
 | 記憶 | 長期記憶由伺服器注入；對話後可產生「記憶建議」，**使用者確認後才寫入** |
+| MCP 工具 | 面板新增遠端 MCP 伺服器（Streamable HTTP）；Token 加密存 Neon；模型要呼叫工具時**先在對話中顯示確認卡，按「允許」才執行** |
 | 維運 | 金鑰輪替與重新加密、JSON 分頁備份與還原、舊 D1 資料匯入 |
 
 ## 架構
@@ -81,6 +82,7 @@ test/                                  node:test；資料庫測試以 PGlite 實
 | `/api/files`、`/:id/complete`、`/:id/download` | 上傳（presign）、完成、下載 |
 | `/api/memories`、`/api/memories/suggest` | 記憶、記憶建議 |
 | `/api/embeddings/status`、`/config`、`/backfill` | 嵌入狀態（含各供應商嵌入模型 `options`）、設定 `{provider_id, model}` 或 `{reset:true}` 關閉、補建向量 |
+| `/api/mcp/servers`、`/:id`、`/:id/refresh`、`/api/mcp/call` | MCP 伺服器清單／新增／修改（啟用、停用個別工具、換 Token）／刪除／重新取得工具；執行工具（前端在使用者允許後才呼叫） |
 | `/api/backup`、`/api/backup/restore` | 匯出、還原 |
 | `/api/admin/keys`、`/api/admin/rekey` | 金鑰狀態、重新加密 |
 | `/api/image`、`/api/tool`、`/api/sync*` | 圖片代理、工具（search/fetch/calc/time/docs）、舊同步相容 |
@@ -120,7 +122,7 @@ test/                                  node:test；資料庫測試以 PGlite 實
 
 ```bash
 npm install
-npm test                 # 64 項；不需要真的資料庫（PGlite）
+npm test                 # 67 項；不需要真的資料庫（PGlite）
 npm run gen:key          # 產生 ENCRYPTION_KEY
 npm run build            # 由 src/web_decoded.html 產生 public/
 DATABASE_URL=... npm run db:migrate
@@ -429,6 +431,17 @@ TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxx
 ```
 
 依 https://docs.tavily.com/documentation/api-credits ：免費每月 1,000 credits，basic 搜尋每次 1 credit。
+
+## MCP 工具
+
+設定位置：設定 → 供應商 → 「MCP 工具」卡片。填名稱、網址、標頭名稱（預設 `Authorization`）與 Token（可留空），按「新增並連線」會立刻取得工具清單。
+
+- 傳輸：只支援 **Streamable HTTP**（MCP 規格 2025-06-18，https://modelcontextprotocol.io/specification/2025-06-18/basic/transports ），網址須 HTTPS、不可指向內網。Netlify Functions 不能啟動子行程，所以 stdio（本機指令）類 MCP 伺服器無法使用；舊版 HTTP+SSE（2024-11-05）傳輸也未支援。
+- Token：加密（AES-256-GCM）存在 `settings` 的 `secret.mcp.<id>`，不經 `/api/settings` 回傳、不進備份，金鑰輪替時一併重新加密。標頭為 `Authorization` 且 Token 沒寫 `Bearer` 時自動補上。
+- 工具：每台伺服器最多 50 個、全部最多 64 個交給模型；可取消勾選個別工具或停用整台伺服器。工具清單在新增、換 Token、按「重新連線」時更新。
+- **確認**：伺服器只把工具清單交給模型，不會自己執行。模型要呼叫工具時，對話中出現確認卡（工具名稱、所屬伺服器、參數），按「允許」才呼叫 `/api/mcp/call`，按「拒絕」則告訴模型使用者拒絕；結果送回模型繼續回答，最多 5 回合。
+- 需求：聊天模型要支援 OpenAI 格式的 tool calling（`tools`／`tool_calls`）。不支援的模型可能報錯，可在面板停用 MCP 伺服器。
+- 限制：工具結果最多 12,000 字；單次呼叫逾時 45 秒；對話記錄只保存文字回答，不保存工具參數與結果。
 
 ## API Key 加密金鑰輪替
 

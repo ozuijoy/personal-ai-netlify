@@ -93,7 +93,30 @@ export function normalizeRoles(messages) {
 }
 
 function messagesForProvider(body, searchResults) {
-  return normalizeRoles(rawMessagesForProvider(body, searchResults))
+  return [...normalizeRoles(rawMessagesForProvider(body, searchResults)), ...toolTurnMessages(body.tool_turns)]
+}
+
+// MCP 工具回合（前端在使用者允許／拒絕後送回）：[{content, tool_calls:[{id,name,arguments}], results:[{id,content}]}]
+// 轉成 OpenAI 格式：assistant（含 tool_calls）後接每個 tool 結果。
+export function toolTurnMessages(turns) {
+  if (!Array.isArray(turns)) return []
+  const out = []
+  for (const turn of turns.slice(0, 6)) {
+    if (!turn || !Array.isArray(turn.tool_calls) || !turn.tool_calls.length) continue
+    const calls = turn.tool_calls.slice(0, 8).map((c) => ({
+      id: clampText(c && c.id, 100) || 'call_' + Math.random().toString(36).slice(2, 10),
+      type: 'function',
+      function: { name: clampText(c && c.name, 64), arguments: clampText(typeof c?.arguments === 'string' ? c.arguments : JSON.stringify(c?.arguments || {}), 20000) },
+    })).filter((c) => /^[A-Za-z0-9_-]{1,64}$/.test(c.function.name))
+    if (!calls.length) continue
+    out.push({ role: 'assistant', content: clampText(turn.content, MAX_MESSAGE_CHARS) || null, tool_calls: calls })
+    const results = Array.isArray(turn.results) ? turn.results : []
+    for (const c of calls) {
+      const r = results.find((x) => x && x.id === c.id)
+      out.push({ role: 'tool', tool_call_id: c.id, content: clampText(r ? r.content : '使用者沒有允許執行這個工具。', 12000) || '（空）' })
+    }
+  }
+  return out
 }
 
 function rawMessagesForProvider(body, searchResults) {
@@ -145,8 +168,14 @@ export function buildSearchQuery(body) {
 }
 
 function sseFromJson(data) {
-  const text = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content
-  const body = text
+  const msg = data && data.choices && data.choices[0] && data.choices[0].message
+  const text = msg && msg.content
+  const calls = msg && Array.isArray(msg.tool_calls) ? msg.tool_calls : []
+  let body = ''
+  if (calls.length) {
+    const delta = { content: text || '', tool_calls: calls.map((c, index) => ({ index, id: c.id, type: 'function', function: { name: c.function?.name || '', arguments: c.function?.arguments || '' } })) }
+    body = `data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`
+  } else body = text
     ? `data: ${JSON.stringify({ content: String(text) })}\n\ndata: [DONE]\n\n`
     : `data: ${JSON.stringify({ error: '供應商沒有回傳內容' })}\n\ndata: [DONE]\n\n`
   return new Response(body, {
@@ -161,7 +190,7 @@ function sseFromJson(data) {
 // loadContext(body, env, text) -> {text, skills, memories}：伺服器注入技能與 Memory（失敗不影響聊天）。
 // resolveProvider(body, env) -> {baseUrl, apiKey, model}；Netlify 版由呼叫端注入（查 Neon + 解密），
 // 未注入時只接受請求內帶的 provider（沒有內建供應商）。
-export async function handleChat(request, env, { resolveProvider, loadContext, resolveSearch } = {}) {
+export async function handleChat(request, env, { resolveProvider, loadContext, resolveSearch, resolveTools } = {}) {
   let body
   try {
     body = await readJsonBody(request)
@@ -224,6 +253,14 @@ export async function handleChat(request, env, { resolveProvider, loadContext, r
     max_tokens: Math.min(8192, Math.max(256, Number(body.max_tokens ?? 2048))),
   }
 
+  let toolCount = 0
+  if (resolveTools && body.use_tools !== false) {
+    try {
+      const tools = await resolveTools(env)
+      if (tools && tools.length) { upstreamBody.tools = tools; upstreamBody.tool_choice = 'auto'; toolCount = tools.length }
+    } catch (err) { console.error('mcp tools load failed', err && err.message) }
+  }
+
   let upstream
   try {
     upstream = await fetchWithTimeout(
@@ -269,6 +306,7 @@ export async function handleChat(request, env, { resolveProvider, loadContext, r
     'X-Search-Status': searchStatus || 'off',
     'X-Skills': encodeURIComponent(JSON.stringify((injected.skills || []).map((x) => x.name))),
     'X-Memory-Count': String((injected.memories || []).length),
+    'X-Tool-Count': String(toolCount),
   }
 
   if (type.includes('application/json')) {

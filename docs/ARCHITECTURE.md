@@ -201,6 +201,13 @@ Edge Functions（[limits](https://docs.netlify.com/build/edge-functions/limits/)
 - `src/tools/search.js`：`searchWeb` 依 provider 呼叫 `s.jina.ai`（`Accept: application/json`、`X-Respond-With: no-content`）或 `api.tavily.com/search`（basic）；`limitSearchResults` 依上限截斷後注入系統提示。
 - Edge `/api/chat` 以 `resolveSearch` 注入面板設定；沒有面板 Key 時退回 `JINA_API_KEY`／`TAVILY_API_KEY`。
 
+## 3.8 MCP 工具（面板）
+
+- `src/mcp.js`：`settings.mcp.servers` = [{id, name, url, header_name, enabled, disabled_tools, tools(快取), tools_at, tools_error}]；Token 存 `secret.mcp.<id>`（AES-256-GCM）。Streamable HTTP 客戶端：每則 JSON-RPC 一次 POST、`Accept: application/json, text/event-stream`、JSON 或 SSE 回應皆可、`Mcp-Session-Id` 與 `MCP-Protocol-Version` 標頭、`redirect: manual`；每次操作重新 initialize（無狀態，適合 Functions／Edge）。
+- function 名稱 `<serverId>__<工具名>`（≤64 字元、只含英數 `_-`），`/api/mcp/call` 依名稱對回伺服器與工具，停用的伺服器或工具拒絕執行。
+- Edge `/api/chat` 以 `resolveTools` 注入 `tools`（`tool_choice: auto`），回應標頭 `X-Tool-Count`；前端累積 `delta.tool_calls`，顯示確認卡，允許後呼叫 `/api/mcp/call`，再以 `tool_turns`（assistant＋tool 訊息，接在 `normalizeRoles` 之後）重送 `/api/chat`，最多 5 回合。執行在 Function（60 秒上限），呼叫逾時 45 秒。
+- 備份還原會略過 `secret.*` 設定。
+
 ## 4. 前端改動範圍（第二階段）
 
 前端是單檔 `src/web_decoded.html`（約 31 萬字元），localStorage 鍵約 30 個。策略：**伺服器為主、localStorage 只當快取與離線暫存**，新增一個 `api` 小模組集中所有請求。

@@ -84,6 +84,8 @@ export async function restoreRows(db, table, rawRows, ownerId = OWNER) {
   let rows = validateRows(table, rawRows)
   // 環境變數供應商只存在於部署設定，不能由備份建立
   if (table === 'providers') rows = rows.filter((r) => !/^env-/i.test(String(r.id || '')))
+  // 祕密（secret.*）只能經專用 API 寫入
+  if (table === 'settings') rows = rows.filter((r) => !String(r.key || '').startsWith('secret.'))
   // 0003 之前的備份沒有 kind：視為聊天模型
   if (table === 'provider_models') for (const r of rows) if (r.kind !== 'embed') r.kind = 'chat'
   if (!rows.length) return { table, restored: 0 }

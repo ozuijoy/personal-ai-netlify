@@ -17,6 +17,8 @@
 //   POST   /api/files/:id/complete      {text?, title?, extract, pages?} 上傳完成、寫入知識庫
 //   GET    /api/files/:id/download[?inline=1]  → {url}（presigned GET，5 分鐘）
 //   DELETE /api/files/:id
+//   GET    /api/mcp/servers             POST /api/mcp/servers {name,url,token?,header_name?}  PATCH|DELETE /api/mcp/servers/:id  POST /api/mcp/servers/:id/refresh
+//   POST   /api/mcp/call                {name, arguments}（前端使用者允許後才呼叫）
 //   GET    /api/search/web              PUT /api/search/web {provider:'jina'|'tavily'|'off', api_key, key_provider, maxResults, snippetChars, contextChars}
 //   GET    /api/search/status           PUT /api/search/config {keyword: 'auto'|'bm25'|'bigram'|null}（關鍵字引擎）
 //   GET    /api/embeddings/status       PUT /api/embeddings/config {provider_id, model} | {reset:true}（關閉）   POST /api/embeddings/backfill
@@ -43,6 +45,7 @@ import { createStorage } from './storage.js'
 import { handleMemorySuggest } from './memory_suggest.js'
 import { backfillEmbeddings, embeddingStatus, hybridSearch, setEmbeddingConfig } from './embeddings.js'
 import { keywordStatus, setKeywordMode } from './keyword_search.js'
+import { callMcpTool, createMcpServer, deleteMcpServer, listMcpServers, refreshMcpServer, rekeyMcpSecrets, updateMcpServer } from './mcp.js'
 import { rekeyWebSearchSecrets, setWebSearchConfig, webSearchStatus } from './web_search_config.js'
 import { BACKUP_FORMAT, BACKUP_VERSION, TABLE_ORDER, exportPage, restoreRows } from './backup.js'
 
@@ -130,6 +133,13 @@ const ROUTES = [
     try { await setKeywordMode(db, body?.keyword ?? null) } catch (err) { return errorJson(err.message, err.status || 400, 'bad_request') }
     return json({ ok: true, status: await keywordStatus(db, env) })
   }],
+  // MCP 遠端工具（面板設定；工具呼叫需前端使用者按「允許」）
+  ['GET', /^\/api\/mcp\/servers$/, async ({ db, env }) => json({ ok: true, ...(await listMcpServers(db, env)) })],
+  ['POST', /^\/api\/mcp\/servers$/, async ({ db, env, body }) => mcpOut(async () => ({ server: await createMcpServer(db, env, body || {}) }), 201)],
+  ['PATCH', new RegExp(`^/api/mcp/servers/${ID}$`), async ({ db, env, body, m }) => mcpOut(async () => ({ server: await updateMcpServer(db, env, m[1], body || {}) }))],
+  ['POST', new RegExp(`^/api/mcp/servers/${ID}/refresh$`), async ({ db, env, m }) => mcpOut(async () => ({ server: await refreshMcpServer(db, env, m[1]) }))],
+  ['DELETE', new RegExp(`^/api/mcp/servers/${ID}$`), async ({ db, m }) => ok(await deleteMcpServer(db, m[1]))],
+  ['POST', /^\/api\/mcp\/call$/, async ({ db, env, body }) => mcpOut(async () => ({ result: await callMcpTool(db, env, body || {}) }))],
   // 網頁搜尋供應商（面板：Jina / Tavily，Key 加密存 Neon）
   ['GET', /^\/api\/search\/web$/, async ({ db, env }) => json({ ok: true, status: await webSearchStatus(db, env) })],
   ['PUT', /^\/api\/search\/web$/, async ({ db, env, body }) => {
@@ -147,7 +157,8 @@ const ROUTES = [
   ['POST', /^\/api\/admin\/rekey$/, async ({ db, env }) => {
     const r = await rekeyProviders(db, env)
     const w = await rekeyWebSearchSecrets(db, env)
-    return json({ ok: true, ...r, rekeyed: r.rekeyed + w.rekeyed, failed: [...r.failed, ...w.failed], keys: await keyStatus(db, env) })
+    const mc = await rekeyMcpSecrets(db, env)
+    return json({ ok: true, ...r, rekeyed: r.rekeyed + w.rekeyed + mc.rekeyed, failed: [...r.failed, ...w.failed, ...mc.failed], keys: await keyStatus(db, env) })
   }],
   // 備份
   ['GET', /^\/api\/backup$/, async ({ db, url }) => {
@@ -171,6 +182,10 @@ const ROUTES = [
   ['PATCH', new RegExp(`^/api/(${KINDS})/${ID}$`), async ({ db, body, m }) => found(await updateEntity(db, m[1], m[2], body), 'item')],
   ['DELETE', new RegExp(`^/api/(${KINDS})/${ID}$`), async ({ db, m }) => ok(await deleteEntity(db, m[1], m[2]))],
 ]
+
+async function mcpOut(fn, status = 200) {
+  try { return json({ ok: true, ...(await fn()) }, status) } catch (err) { return errorJson(err.message || 'MCP 錯誤', err.status || 400, 'mcp_error') }
+}
 
 function found(value, key) {
   return value ? json({ ok: true, [key]: value }) : errorJson('找不到資料', 404, 'not_found')
