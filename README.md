@@ -3,8 +3,8 @@
 [`scupro/personal-ai`](https://github.com/scupro/personal-ai)（Cloudflare Workers + D1）的移植版，改用 **Netlify Functions / Edge Functions + Neon Postgres**。
 資料以伺服器為主（不再依賴瀏覽器 localStorage），API Key 在伺服器端以 AES-256-GCM 加密。
 
-> **狀態：第一版已正式部署（https://ozjoy-ai.netlify.app）；MCP 工具與伺服器端保存回答（下一版）已在本機完成，70 項測試通過，尚未部署。**
-> 部署前仍需實測：真實 Neon（含 pgvector）、Neon Object Storage、Edge 串流超過 60 秒、實際使用的供應商（聊天與嵌入）端點。
+> **狀態：已正式部署（https://ozagent.netlify.app），含 MCP 工具與伺服器端保存回答；70 項測試通過。**
+> 尚未實測：真實 MCP 伺服器、Neon Object Storage、中文 BM25（lakebase）、Jina／Tavily 網頁搜尋、用戶端斷線後 Edge 背景保存回答。
 
 - 完整架構與設計理由：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - 資料表：[`db/migrations/0001_init.sql`](db/migrations/0001_init.sql)、[`db/migrations/0002_vectors.sql`](db/migrations/0002_vectors.sql)、[`db/migrations/0003_model_kinds.sql`](db/migrations/0003_model_kinds.sql)、[`db/migrations/0004_cjk_bm25.sql`](db/migrations/0004_cjk_bm25.sql)
@@ -442,6 +442,14 @@ TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxx
 - **確認**：伺服器只把工具清單交給模型，不會自己執行。模型要呼叫工具時，對話中出現確認卡（工具名稱、所屬伺服器、參數），按「允許」才呼叫 `/api/mcp/call`，按「拒絕」則告訴模型使用者拒絕；結果送回模型繼續回答，最多 5 回合。
 - 需求：聊天模型要支援 OpenAI 格式的 tool calling（`tools`／`tool_calls`）。不支援的模型可能報錯，可在面板停用 MCP 伺服器。
 - 限制：工具結果最多 12,000 字；單次呼叫逾時 45 秒；對話記錄只保存文字回答，不保存工具參數與結果。
+
+### 讓模型呼叫 MCP 工具
+
+1. 新增伺服器並連線成功，確認卡片上的工具有勾選、伺服器為啟用。
+2. 聊天時選支援 tool calling 的模型（例如 Groq `llama-3.3-70b-versatile`）。小模型或本機模型常忽略工具。
+3. 直接提出需要該工具的問題；啟用的工具會自動附在每次聊天請求中（`tool_choice: auto`），不需另外開關。
+4. 模型決定呼叫時出現確認卡，按「允許」執行。想提高呼叫機率，可在問題裡點名工具，例如「用 XX 工具查……」。
+5. 沒出現確認卡：多半是模型不支援工具或判斷不需要；換模型或改問法。確認卡需要頁面開著，關頁後不會執行工具。
 
 ## API Key 加密金鑰輪替
 
