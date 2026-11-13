@@ -2,8 +2,6 @@
 
 個人 AI 聊天工作台：接任何 OpenAI 相容模型，搭配知識庫、技能、長期記憶、網頁搜尋與 MCP 工具，資料存在自己的 Neon Postgres。
 
-**正式站**：[ozagent.netlify.app](https://ozagent.netlify.app)
-
 主要功能：
 
 - **多供應商聊天**：任何 OpenAI 相容服務（含無 API Key 的自架模型），模型選單依供應商分組；Edge 串流，回答由伺服器保存，關頁不遺失。
