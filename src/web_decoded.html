@@ -5063,6 +5063,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var decoder = new TextDecoder();
       var buffer = '';
       var srcHeader = response.headers.get('x-sources') || '';
+      var streamErr = null; // 串流中的供應商錯誤：之前被 try/catch 吞掉，畫面只剩空白回答
       var searchCtx = null; // 首輪網頁搜尋結果（伺服器以 SSE 事件送來），工具回合原樣回傳
       var firstSearchStatus = response.headers.get('x-search-status') || '';
       if (srcHeader) {
@@ -5091,7 +5092,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
               delta = (choice.delta && (choice.delta.content || choice.delta.text)) || (choice.message && choice.message.content) || '';
               if (choice.delta && Array.isArray(choice.delta.tool_calls)) mergeToolCallDeltas(toolCalls, choice.delta.tool_calls);
             }
-            if (p.error) throw new Error(typeof p.error === 'string' ? p.error : (p.error.message || '供應商錯誤'));
+            if (p.error) { streamErr = new Error(typeof p.error === 'string' ? p.error : (p.error.message || '供應商錯誤')); break; }
             if (delta) {
               fullText += delta;
               if (textContainer) {
@@ -5102,6 +5103,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
           } catch(e) {}
         }
       }
+      if (streamErr) throw streamErr;
       if (textContainer) textContainer.innerHTML = renderMarkdown(fullText);
       if (toolCalls.length) {
         // 工具：唯讀文件工具直接執行，其餘顯示確認卡；結果送回模型繼續回答（最多 8 回合，用完強制回答）

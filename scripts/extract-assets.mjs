@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const html = fs.readFileSync(path.join(root, 'src', 'web_decoded.html'), 'utf8');
@@ -34,3 +35,13 @@ iife = inject + iife.slice('(function() {'.length);
 fs.writeFileSync(path.join(outDir, 'app.js'), iife + '\n');
 console.log('Wrote public/assets/app.css (' + cssMatch[1].length + ' chars)');
 console.log('Wrote public/assets/app.js (' + iife.length + ' chars, markup ' + markup.length + ')');
+
+// 資產版本：依內容雜湊產生，部署後 ?v= 改變，避免瀏覽器沿用 immutable 快取的舊 app.js
+const h = crypto.createHash('sha256');
+for (const f of ['app.js', 'app.css', 'i18n.js', 'prompts.js']) {
+  const fp = path.join(outDir, f);
+  if (fs.existsSync(fp)) h.update(fs.readFileSync(fp));
+}
+const ver = h.digest('hex').slice(0, 12);
+fs.writeFileSync(path.join(root, 'src', 'asset_version.js'), `export const ASSET_V = '${ver}'\n`);
+console.log('Asset version ' + ver);
