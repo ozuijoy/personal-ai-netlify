@@ -72,7 +72,7 @@ test('handleChat: tools_exhausted / use_tools:false send tool results as text, s
   try {
     // 一般回合：原生 tool_calls 格式
     let res = await chat({ prompt: '貓叫什麼', tool_turns: turns })
-    assert.equal(res.headers.get('X-Tool-Count'), '4')
+    assert.equal(res.headers.get('X-Tool-Count'), '7')
     assert.ok(sent[0].messages.some((m) => m.role === 'tool'))
     assert.ok(sent[0].messages[0].content.includes(DOCS_ACCESS_RULE))
 

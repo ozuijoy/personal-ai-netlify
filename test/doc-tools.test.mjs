@@ -148,11 +148,11 @@ test('doc tools: settings switch and chat injection', async () => {
   assert.equal(docToolsEnabled({ 'tools.docs': false }), false)
   assert.equal(docToolsEnabled({ 'tools.docs': 'false' }), false)
   assert.equal(docToolsEnabled({ 'tools.docs': true }), true)
-  assert.deepEqual((await resolveDocTools(db)).map((t) => t.function.name), ['docs__list', 'docs__search', 'docs__read', 'docs__save'])
+  assert.deepEqual((await resolveDocTools(db)).map((t) => t.function.name), ['docs__list', 'docs__search', 'docs__read', 'docs__save', 'docs__edit', 'docs__create_folder', 'docs__delete'])
   const mcp = async () => [{ type: 'function', function: { name: 'mcpab__x', description: '', parameters: { type: 'object', properties: {} } } }]
-  assert.equal((await resolveAllTools(db, mcp)).length, 5)
+  assert.equal((await resolveAllTools(db, mcp)).length, 8)
   // MCP 失敗不影響文件工具
-  assert.equal((await resolveAllTools(db, async () => { throw new Error('down') })).length, 4)
+  assert.equal((await resolveAllTools(db, async () => { throw new Error('down') })).length, 7)
 
   await putSettings(db, { 'tools.docs': false })
   assert.equal((await resolveDocTools(db)).length, 0)
@@ -179,7 +179,7 @@ test('doc tools: settings switch and chat injection', async () => {
     })
   try {
     let res = await chat({ prompt: '幫我記下', __toolNames: ['docs__save'] })
-    assert.equal(res.headers.get('X-Tool-Count'), '4')
+    assert.equal(res.headers.get('X-Tool-Count'), '7')
     assert.equal(sent[0].tool_choice, 'auto')
     assert.ok(sent[0].tools.some((t) => t.function.name === 'docs__save'))
     assert.match(sent[0].messages[0].content, /只有工具回傳成功/)

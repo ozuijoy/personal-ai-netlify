@@ -2426,7 +2426,12 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       });
       if (touchedProjects) { saveProjects(); }
       if (touchedDocs) { saveDocuments(); }
-      if (touchedChats) { saveChats(); if (chats[currentChatId] && !isGenerating) loadChatView(); }
+      if (touchedChats) {
+        saveChats();
+        var curC = chats[currentChatId];
+        if (currentProjectId && !isGenerating && (!curC || !curC.messages || !curC.messages.length)) openProjectChat(currentProjectId);
+        else if (curC && !isGenerating) loadChatView();
+      }
       if (touchedProjects || touchedDocs || touchedChats) renderSidebar();
       saveSyncMeta();
       setSyncStatus(imported ? ('正在把 ' + imported + ' 項本機資料上傳到伺服器…') : '已與伺服器同步', false);
@@ -3836,6 +3841,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
 
   function startNewChat() {
     if (shareReadOnly) { shareReadOnly = false; history.replaceState({}, '', '/'); }
+    // 專案只有一個對話：在專案裡按「新對話」＝離開專案、開一般對話
+    if (currentProjectId) { currentProjectId = null; try { localStorage.removeItem('ta_project_active'); } catch(eNp) {} }
     currentChatId = Date.now().toString();
     loadChatView();
     renderSidebar();
@@ -3974,14 +3981,41 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     if (isNaN(d.getTime())) d = new Date();
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
+  // 合併串流中的 tool_calls 片段。
+  // 部分供應商（例如 Gemini 的 OpenAI 相容端點、部分 vLLM／代理）平行呼叫多個工具時全部用 index 0 或不給 index，
+  // 舊寫法會把名稱與參數接成一筆（web__searchweb__search…、{..}{..}），導致「找不到這個網路工具」。
+  // 規則：遇到不同的 id，或目前這筆參數已是完整 JSON 又來一個新名稱，就開新的一筆；重複送同一名稱不再串接。
+  function toolArgsComplete(s) {
+    s = String(s || '').trim();
+    if (!s) return false;
+    try { JSON.parse(s); return true; } catch(e) { return false; }
+  }
   function mergeToolCallDeltas(acc, deltas) {
+    if (!acc._map) { acc._map = {}; acc._last = -1; }
     deltas.forEach(function(d, k) {
-      var i = typeof d.index === 'number' ? d.index : k;
-      var c = acc[i] || (acc[i] = { id: '', name: '', arguments: '' });
+      if (!d) return;
+      var fn = d.function || {};
+      var key = typeof d.index === 'number' ? d.index : null;
+      var slot = key != null && acc._map[key] != null ? acc._map[key] : (key == null && acc._last >= 0 ? acc._last : -1);
+      var c = slot >= 0 ? acc[slot] : null;
+      var isNew = !c || (d.id && c.id
+        ? d.id !== c.id
+        : !!(fn.name && c.name && toolArgsComplete(c.arguments)));
+      if (isNew) {
+        slot = (key != null && acc._map[key] == null && !acc[key]) ? key : acc.length;
+        c = acc[slot] = { id: '', name: '', arguments: '' };
+      }
+      if (key != null) acc._map[key] = slot;
+      acc._last = slot;
       if (d.id) c.id = d.id;
-      if (d.function) {
-        if (d.function.name) c.name += d.function.name;
-        if (d.function.arguments) c.arguments += typeof d.function.arguments === 'string' ? d.function.arguments : JSON.stringify(d.function.arguments);
+      if (fn.name) {
+        if (!c.name) c.name = fn.name;
+        else if (c.name !== fn.name) c.name += fn.name;
+      }
+      if (fn.arguments) {
+        var a = typeof fn.arguments === 'string' ? fn.arguments : JSON.stringify(fn.arguments);
+        // 有些供應商每個片段都重送完整參數：已完整且內容相同就不再串接
+        if (!(toolArgsComplete(c.arguments) && c.arguments.trim() === a.trim())) c.arguments += a;
       }
     });
   }
@@ -3996,7 +4030,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   }
   // 文件工具：docs__list / docs__search / docs__read 免確認；docs__save 一律顯示確認卡
   // 網路搜尋工具 web__search：唯讀、無副作用，同樣免確認並在同輪去重
-  var DOC_READ_TOOLS = { docs__list: 1, docs__search: 1, docs__read: 1, web__search: 1 };
+  var DOC_READ_TOOLS = { docs__list: 1, docs__search: 1, docs__read: 1, web__search: 1, docs__create_folder: 1 };
+  var DOC_WRITE_TOOLS = { docs__save: 1, docs__edit: 1, docs__delete: 1 };
   function isAutoTool(name) { return !!DOC_READ_TOOLS[name]; }
   function docSaveConfirmHtml(call) {
     var a = {};
@@ -4037,6 +4072,43 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     try { renderKnowledgeList(); } catch(e) {}
     try { renderSidebar(); } catch(e) {}
     try { maybeBackfillEmbeddings(); } catch(e) {}
+  }
+  function docEditConfirmHtml(call) {
+    var a = {};
+    try { a = JSON.parse(call.arguments || '{}') || {}; } catch(e) { a = {}; }
+    var doc = null;
+    for (var i = 0; i < documents.length; i++) if (documents[i] && documents[i].id === String(a.id)) doc = documents[i];
+    var title = doc ? doc.title : String(a.id || '');
+    var buttons = '<div style="display:flex;gap:6px"><button type="button" class="topbar-action-btn primary" data-act="allow">允許</button><button type="button" class="topbar-action-btn" data-act="deny">拒絕</button></div>';
+    if (call.name === 'docs__delete') {
+      return '<div class="sources-title">要刪除文件嗎？</div><div style="font-size:0.85rem;margin:4px 0">文件：<b>' + escapeHtml(title || '（未指定）') + '</b></div>' + buttons;
+    }
+    var cut = function(v) { v = typeof v === 'string' ? v : ''; return v.length > 400 ? v.slice(0, 400) + '…' : v; };
+    return '<div class="sources-title">要修改文件嗎？</div><div style="font-size:0.85rem;margin:4px 0">文件：<b>' + escapeHtml(title || '（未指定）') + '</b>' + (a.replace_all ? '（全部取代）' : '') + '</div>' +
+      '<pre class="doc-save-preview" style="max-height:160px;overflow:auto;font-size:0.75rem;white-space:pre-wrap;margin:4px 0;text-decoration:line-through;opacity:.7">' + escapeHtml(cut(a.old_text) || '（空白）') + '</pre>' +
+      '<pre class="doc-save-preview" style="max-height:160px;overflow:auto;font-size:0.75rem;white-space:pre-wrap;margin:4px 0">' + escapeHtml(cut(a.new_text) || '（刪除）') + '</pre>' + buttons;
+  }
+  function removeLocalDoc(id) {
+    documents = documents.filter(function(d) { return !d || d.id !== id; });
+    delete syncMeta.hashes['doc:' + id]; delete syncMeta.srv['doc:' + id];
+    syncMeta.applying = true;
+    try { saveDocuments(); } finally { syncMeta.applying = false; }
+    saveSyncMeta();
+    try { renderKnowledgeList(); } catch(e) {}
+    try { renderSidebar(); } catch(e) {}
+  }
+  // 工具建立資料夾（專案）後，放進本機專案清單（不觸發回寫）
+  function applyServerProject(sp) {
+    if (!sp || !sp.id) return;
+    var np = projectFromServer(sp), idx = -1;
+    for (var i = 0; i < projects.length; i++) if (projects[i] && projects[i].id === sp.id) idx = i;
+    if (idx >= 0) projects[idx] = np; else projects.unshift(np);
+    syncMeta.hashes['project:' + sp.id] = storeHash(projectForHash(np));
+    syncMeta.srv['project:' + sp.id] = sp.updated_at;
+    syncMeta.applying = true;
+    try { saveProjects(); } finally { syncMeta.applying = false; }
+    saveSyncMeta();
+    try { renderSidebar(); } catch(e) {}
   }
   // 設定頁：網路搜尋工具開關（settings 的 tools.web，未設定＝開啟）；設定值由 loadDocToolsSetting 一起讀取（只打一次 /api/settings）
   function bindWebToolsToggle(st) {
@@ -4090,6 +4162,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       var box = document.createElement('div');
       box.className = 'sources-box mcp-confirm';
       if (call.name === 'docs__save') box.innerHTML = docSaveConfirmHtml(call);
+      else if (call.name === 'docs__edit' || call.name === 'docs__delete') box.innerHTML = docEditConfirmHtml(call);
       else box.innerHTML = '<div class="sources-title">要執行工具嗎？</div>' +
         '<div style="font-size:0.85rem;margin:4px 0"><b>' + escapeHtml(lb.tool) + '</b>' + (lb.server ? '（' + escapeHtml(lb.server) + '）' : '') + '</div>' +
         '<pre style="max-height:220px;overflow:auto;font-size:0.75rem;white-space:pre-wrap;margin:4px 0">' + escapeHtml(args) + '</pre>' +
@@ -4144,6 +4217,12 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       return '讀取：' + short(title || a.id || '（未指定）') + (a.offset ? '（從第 ' + a.offset + ' 字）' : '');
     }
     if (name === 'docs__save') return (a.id ? '修改文件：' : '儲存：') + short(a.title || a.id || '');
+    if (name === 'docs__edit' || name === 'docs__delete') {
+      var et = '';
+      for (var ei = 0; ei < documents.length; ei++) if (documents[ei] && documents[ei].id === String(a.id)) et = documents[ei].title;
+      return (name === 'docs__edit' ? '局部修改：' : '刪除文件：') + short(et || a.id || '');
+    }
+    if (name === 'docs__create_folder') return '建立資料夾：' + short(a.name || '');
     if (name === 'web__search') return '網路搜尋：' + short(a.query || '（未指定）');
     var lb = toolLabel(name);
     return '工具：' + lb.tool + (lb.server ? '（' + lb.server + '）' : '');
@@ -4211,7 +4290,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
         var c = calls[i];
         if (!c.id) c.id = 'call_' + round + '_' + i;
         var key = toolCallKey(c.name, c.arguments);
-        var dedupe = isAutoTool(c.name) || c.name === 'docs__save';
+        var dedupe = isAutoTool(c.name) || !!DOC_WRITE_TOOLS[c.name];
         if (isAutoTool(c.name)) {
           // 唯讀文件工具：不顯示確認卡，只留一行小字（工具名＋重點參數）
           var label = toolCallLabel(c.name, c.arguments);
@@ -4229,6 +4308,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
             results.push({ id: c.id, content: (ra.result.is_error ? '工具回報錯誤：' : '') + ra.result.content });
             line.textContent = label + ' → ' + (ra.result.summary || (ra.result.is_error ? '工具回報錯誤。' : '完成'));
             if (!ra.result.is_error) seen[key] = 1;
+            if (!ra.result.is_error && ra.result.project) applyServerProject(ra.result.project);
             // 網路搜尋結果的來源：併入回答下方的來源框（之後只顯示回答中實際引用的）
             if (!ra.result.is_error && Array.isArray(ra.result.sources)) srcs = mergeSources(srcs, ra.result.sources);
           } catch(e) {
@@ -4262,6 +4342,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
             results.push({ id: c.id, content: (r.result.is_error ? '工具回報錯誤：' : '') + r.result.content });
             note.textContent = r.result.is_error ? ('工具回報錯誤' + (r.result.content ? '：' + String(r.result.content).slice(0, 200) : '。')) : (r.result.summary || '已執行。');
             if (!r.result.is_error && r.result.item) applyServerDoc(r.result.item);
+            if (!r.result.is_error && r.result.deleted_id) removeLocalDoc(r.result.deleted_id);
             if (dedupe && !r.result.is_error) seen[key] = 1;
           } catch(e) {
             results.push({ id: c.id, content: '工具執行失敗：' + (e.message || '') });
@@ -5268,7 +5349,8 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
     try { localizeDockMenu(); } catch (e) {}
     renderModelPicker();
     var chat = chats[currentChatId];
-    if (!chat || !chat.messages || !chat.messages.length) loadChatView();
+    if (currentProjectId && (!chat || !chat.messages || !chat.messages.length) && projectChatKey(currentProjectId)) openProjectChat(currentProjectId);
+    else if (!chat || !chat.messages || !chat.messages.length) loadChatView();
     renderSidebar();
     updateUserUI();
     fillLangSelect();
@@ -5707,6 +5789,11 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
           else renderSidebar();
           return;
         }
+        if (chats[k].projectId && projectById(chats[k].projectId) && chats[k].projectId !== currentProjectId) {
+          switchProject(chats[k].projectId);
+          if (window.innerWidth <= 860) toggleSidebar(false);
+          return;
+        }
         currentChatId = k;
         loadChatView();
         renderSidebar();
@@ -5738,7 +5825,7 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
   function projectContext() {
     var p = projectById(currentProjectId);
     if (!p) return '';
-    var parts = [pt('ctxHead').replace('{n}', p.name)];
+    var parts = [pt('ctxHead').replace('{n}', p.name), '目前專案（資料夾）id：' + p.id + '。使用者說「這個專案／這個資料夾」時，文件工具的 project_id 用這個 id；新文件預設存進這裡。'];
     if (p.description) parts.push(String(p.description).slice(0, 300));
     if (p.instructions) parts.push(pt('instrHead') + ':\n' + String(p.instructions).slice(0, 4000));
     return parts.join('\n');
@@ -5751,19 +5838,59 @@ body:has(.art-panel.open) .tap-builder-pill { width: 32px; padding: 0; justify-c
       '<button type="button" class="hist-bar-btn" id="proj-hero-edit">' + escapeHtml(pt('edit')) + '</button>' +
       '<button type="button" class="hist-bar-btn" id="proj-hero-exit">' + escapeHtml(pt('exit')) + '</button></div>';
   }
+  // 一個專案＝一個對話：回傳該專案唯一的對話 key。
+  // 舊資料若同一專案有多個對話，依建立順序把訊息併進最早那個（其他的刪除，伺服器端軟刪除），不遺失任何訊息。
+  function projectChatKey(pid) {
+    if (!pid) return null;
+    var keys = Object.keys(chats).filter(function(k) {
+      var c = chats[k];
+      return c && !c.ephemeral && !c.readOnly && c.projectId === pid;
+    }).sort(function(a, b) { return (Number(a) || 0) - (Number(b) || 0); });
+    if (!keys.length) return null;
+    var main = keys[0];
+    if (keys.length > 1) {
+      var merged = [], seenMid = {};
+      keys.forEach(function(k) {
+        (chats[k].messages || []).forEach(function(m) {
+          if (!m) return;
+          if (m.mid) { if (seenMid[m.mid]) return; seenMid[m.mid] = 1; }
+          merged.push(m);
+        });
+      });
+      chats[main].messages = merged;
+      chats[main].archived = false;
+      keys.slice(1).forEach(function(k) { delete chats[k]; });
+      saveChats();
+    }
+    var proj = projectById(pid);
+    if (proj && chats[main].title !== proj.name) { chats[main].title = proj.name; saveChats(); }
+    return main;
+  }
+  // 進入專案：直接載入這個專案的完整對話歷史（沒有就準備一個空白的專案對話，第一則訊息送出時才建立）
+  function openProjectChat(pid) {
+    var key = projectChatKey(pid);
+    var cur = chats[currentChatId];
+    if (key) currentChatId = key;
+    else if (!cur || (cur.messages && cur.messages.length) || cur.projectId !== pid) currentChatId = Date.now().toString();
+    loadChatView();
+    renderSidebar();
+    updateTempBadge();
+  }
   function switchProject(id) {
     var p = projectById(id);
     currentProjectId = p ? p.id : null;
     try { if (currentProjectId) localStorage.setItem('ta_project_active', currentProjectId); else localStorage.removeItem('ta_project_active'); } catch(eS) {}
     if (p && p.role && window.TAP && TAP._ && TAP._.setRole) { try { TAP._.setRole(p.role); } catch(eR) {} }
-    var cur = chats[currentChatId];
-    if (p && cur && Array.isArray(cur.messages) && cur.messages.length && cur.projectId !== p.id) {
-      currentChatId = Date.now().toString();
-    }
     sidebarView = 'chats';
     setSidebarView('chats');
-    var c2 = chats[currentChatId];
-    if (!c2 || !c2.messages || !c2.messages.length) loadChatView();
+    if (p) openProjectChat(p.id);
+    else {
+      // 離開專案：回到一般的新對話
+      var cur = chats[currentChatId];
+      if (cur && cur.projectId) currentChatId = Date.now().toString();
+      loadChatView();
+      renderSidebar();
+    }
     projAnnounce(p ? pt('switched').replace('{n}', p.name) : pt('left'));
   }
 

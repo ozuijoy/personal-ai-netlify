@@ -77,7 +77,7 @@ test('web tool: switch, prefix and injection conditions', async () => {
   // 沒有搜尋服務：不注入
   assert.deepEqual(await resolveWebTools(db, {}), [])
   const mcp = async () => [{ type: 'function', function: { name: 'mcpab__x', description: '', parameters: { type: 'object', properties: {} } } }]
-  assert.deepEqual((await resolveAllTools(db, mcp)).map((t) => t.function.name), ['docs__list', 'docs__search', 'docs__read', 'docs__save', 'mcpab__x'])
+  assert.deepEqual((await resolveAllTools(db, mcp)).map((t) => t.function.name), ['docs__list', 'docs__search', 'docs__read', 'docs__save', 'docs__edit', 'docs__create_folder', 'docs__delete', 'mcpab__x'])
 
   // 有 Key（環境變數）：注入，順序 docs → web → MCP；max_results 上限依面板結果數
   const env = { JINA_API_KEY: 'jina_test' }
@@ -87,7 +87,7 @@ test('web tool: switch, prefix and injection conditions', async () => {
   assert.deepEqual(tools[0].function.parameters.required, ['query'])
   assert.match(tools[0].function.parameters.properties.max_results.description, /上限 3/)
   assert.deepEqual((await resolveAllTools(db, mcp, undefined, env)).map((t) => t.function.name),
-    ['docs__list', 'docs__search', 'docs__read', 'docs__save', 'web__search', 'mcpab__x'])
+    ['docs__list', 'docs__search', 'docs__read', 'docs__save', 'docs__edit', 'docs__create_folder', 'docs__delete', 'web__search', 'mcpab__x'])
 
   // 面板關閉搜尋服務、或 tools.web 關閉：不注入
   await putSettings(db, { 'search.web': { provider: 'off' } })
@@ -217,7 +217,7 @@ test('handleChat: web__search offered without search_web; tool rounds reuse firs
     // 1) 輸入框開關關閉：仍提供 web__search，系統提示要求用工具、附來源
     let res = await chat({ prompt: '今天有什麼新聞？' })
     assert.equal(res.headers.get('X-Search-Status'), 'off')
-    assert.equal(res.headers.get('X-Tool-Count'), '5')
+    assert.equal(res.headers.get('X-Tool-Count'), '8')
     await res.text()
     assert.ok(sent[0].tools.some((t) => t.function.name === 'web__search'))
     assert.match(sent[0].messages[0].content, /web__search/)

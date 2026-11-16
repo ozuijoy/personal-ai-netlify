@@ -4,7 +4,10 @@
 //   docs__list    列出文件（與專案清單）           唯讀，前端免確認
 //   docs__search  全文／混合檢索，回片段與文件 id   唯讀，前端免確認
 //   docs__read    依 id 讀整份，可用 offset 分段     唯讀，前端免確認
-//   docs__save    新增或修改文件                     寫入，前端必須顯示確認卡、使用者按「允許」才呼叫
+//   docs__save    新增或修改文件（可只改標題／搬資料夾）  寫入，前端必須顯示確認卡
+//   docs__edit    局部取代（old_text → new_text）    寫入，前端必須顯示確認卡
+//   docs__create_folder  建立專案（＝資料夾），同名不重建  前端免確認（無破壞性）
+//   docs__delete  軟刪除文件                         前端必須顯示確認卡
 //
 // 開關：settings 的 tools.docs（未設定＝開啟；false / "false" / "0" / 0 ＝關閉）。
 // 關閉時不注入給模型，伺服器端呼叫也會拒絕。
@@ -12,7 +15,7 @@
 // 向量：寫入後 doc_chunks 會由 createEntity / updateEntity 重新切塊；語意向量沿用前端的
 //       maybeBackfillEmbeddings（/api/embeddings/backfill）補齊，與一般文件儲存流程相同。
 import { OWNER } from './repo/providers.js'
-import { createEntity, getEntity, getSettings, listEntities, searchDocuments, updateEntity } from './repo/entities.js'
+import { createEntity, deleteEntity, getEntity, getSettings, listEntities, searchDocuments, updateEntity } from './repo/entities.js'
 import { hybridSearch } from './embeddings.js'
 import { resolveWebTools } from './web_tool.js'
 
@@ -94,17 +97,63 @@ export const DOC_TOOLS = [
       name: 'docs__save',
       description: '把內容存成使用者知識庫裡的文件：不帶 id ＝新增一份筆記；帶 id ＝修改該文件（mode=replace 取代全文，mode=append 接在文末）。' +
         '只在使用者明確要求儲存、記下、建立或修改文件時使用。每次執行前使用者都會看到確認卡，可能拒絕；' +
-        '只有本工具回傳成功後才能說已儲存。專案即資料夾：要放進某個資料夾就指定 project_id。',
+        '只有本工具回傳成功後才能說已儲存。專案即資料夾：要放進某個資料夾就指定 project_id（資料夾不存在時先用 docs__create_folder 建立）。' +
+        '只改標題或搬到別的資料夾時，帶 id 與 title／project_id 即可，不必重送 content；只改一小段請用 docs__edit。',
       parameters: {
         type: 'object',
         properties: {
           id: { type: 'string', description: '要修改的文件 id；新增時省略。' },
           title: { type: 'string', description: '文件標題（新增時必填；修改時省略＝不變）。' },
-          content: { type: 'string', description: '文件內容（Markdown 純文字）。' },
-          project_id: { type: 'string', description: '專案 id 或專案名稱（可省略＝不屬於任何專案；修改時省略＝不變）。' },
+          content: { type: 'string', description: '文件內容（Markdown 純文字）。新增時必填；修改時省略＝內容不變。' },
+          project_id: { type: 'string', description: '專案（資料夾）id 或名稱（可省略＝不屬於任何專案；修改時省略＝不變；空字串＝移出資料夾）。' },
           mode: { type: 'string', enum: ['replace', 'append'], description: '修改時的方式，預設 replace。' },
         },
-        required: ['content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docs__edit',
+      description: '局部修改一份文件：把 old_text 換成 new_text（old_text 必須逐字出現在文件中，含空白與標點）。' +
+        '比 docs__save 整份重寫更安全，適合改錯字、改一段、刪一段（new_text 給空字串）。先用 docs__read 看原文再改。執行前使用者會看到確認卡。',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: '文件 id。' },
+          old_text: { type: 'string', description: '要被取代的原文片段（逐字複製）。' },
+          new_text: { type: 'string', description: '新的內容；空字串＝刪除該片段。' },
+          replace_all: { type: 'boolean', description: 'old_text 出現多次時是否全部取代；預設 false（出現多次會回報錯誤）。' },
+        },
+        required: ['id', 'old_text', 'new_text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docs__create_folder',
+      description: '建立一個新的專案（＝資料夾）。使用者要求新建資料夾／專案，或要把文件存進一個還不存在的資料夾時使用。' +
+        '同名資料夾已存在時不會重複建立，直接回傳既有的 id。建立後可用回傳的 id 當 docs__save 的 project_id。',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: '資料夾（專案）名稱。' },
+          description: { type: 'string', description: '簡短說明（可省略）。' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'docs__delete',
+      description: '刪除一份文件（移到伺服器的軟刪除，不是永久抹除）。只在使用者明確要求刪除時使用；執行前使用者會看到確認卡。',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string', description: '文件 id。' } },
+        required: ['id'],
       },
     },
   },
@@ -253,12 +302,14 @@ async function read(db, a, ownerId) {
 
 async function save(db, a, ownerId) {
   const id = a.id == null ? '' : String(a.id).trim()
-  if (typeof a.content !== 'string') throw bad('請提供 content（文字）')
-  const content = a.content
+  if (a.content != null && typeof a.content !== 'string') throw bad('content 必須是文字')
+  const hasContent = typeof a.content === 'string'
+  const content = hasContent ? a.content : ''
   if (content.length > MAX_SAVE_CHARS) throw bad(`內容過長（上限 ${MAX_SAVE_CHARS} 字）`)
   const title = a.title == null ? '' : String(a.title).trim().slice(0, 500)
   const hasProject = a.project_id !== undefined && a.project_id !== null
   const project = hasProject ? await resolveProject(db, a.project_id, ownerId) : null
+  if (!id && !hasContent) throw bad('新增文件需要 content')
   let item
   let action
   if (!id) {
@@ -273,24 +324,27 @@ async function save(db, a, ownerId) {
     if (!ID_RE.test(id)) throw bad('文件 id 格式不正確')
     const doc = await getEntity(db, 'documents', id, ownerId)
     if (!doc) throw bad('找不到這份文件', 404)
-    if (doc.file_id) throw bad('這份文件由上傳檔案抽出，不能用工具修改；請另存一份新文件')
+    if (doc.file_id && hasContent) throw bad('這份文件由上傳檔案抽出，不能用工具修改內容；請另存一份新文件（改標題或搬資料夾可以）')
     const mode = a.mode === 'append' ? 'append' : 'replace'
     const patch = {}
-    if (mode === 'append') {
-      const base = String(doc.content || '')
-      patch.content = base ? base.replace(/\s+$/, '') + '\n\n' + content : content
-    } else patch.content = content
-    if (patch.content.length > MAX_SAVE_CHARS * 4) throw bad('文件合併後過長')
+    if (hasContent) {
+      if (mode === 'append') {
+        const base = String(doc.content || '')
+        patch.content = base ? base.replace(/\s+$/, '') + '\n\n' + content : content
+      } else patch.content = content
+      if (patch.content.length > MAX_SAVE_CHARS * 4) throw bad('文件合併後過長')
+    }
     if (title) patch.title = title
     if (hasProject) patch.project_id = project ? project.id : null
+    if (!Object.keys(patch).length) throw bad('沒有要修改的內容：請提供 content、title 或 project_id')
     item = await updateEntity(db, 'documents', id, patch, ownerId)
-    action = mode === 'append' ? 'appended' : 'updated'
+    action = !hasContent ? (hasProject && !title ? 'moved' : 'updated') : mode === 'append' ? 'appended' : 'updated'
   }
   let projectName = null
   if (item.project_id) projectName = project && project.id === item.project_id ? project.name
     : ((await projectList(db, ownerId)).find((p) => p.id === item.project_id) || {}).name || null
   const chars = String(item.content || '').length
-  const verb = action === 'created' ? '新增' : action === 'appended' ? '附加' : '修改'
+  const verb = action === 'created' ? '新增' : action === 'appended' ? '附加' : action === 'moved' ? '搬移' : '修改'
   return {
     content: out({ ok: true, action, id: item.id, title: item.title, project: projectName, project_id: item.project_id || null, chars }),
     summary: `已${verb}文件：${item.title || '（無標題）'}`,
@@ -300,6 +354,69 @@ async function save(db, a, ownerId) {
       id: item.id, project_id: item.project_id, file_id: item.file_id, title: item.title, doc_type: item.doc_type,
       content: item.content, length: chars, data: item.data, created_at: item.created_at, updated_at: item.updated_at,
     },
+  }
+}
+
+function docItem(item) {
+  return {
+    id: item.id, project_id: item.project_id, file_id: item.file_id, title: item.title, doc_type: item.doc_type,
+    content: item.content, length: String(item.content || '').length, data: item.data, created_at: item.created_at, updated_at: item.updated_at,
+  }
+}
+
+async function edit(db, a, ownerId) {
+  const id = String(a.id || '').trim()
+  if (!ID_RE.test(id)) throw bad('文件 id 格式不正確')
+  if (typeof a.old_text !== 'string' || !a.old_text) throw bad('請提供 old_text（要取代的原文片段）')
+  if (typeof a.new_text !== 'string') throw bad('請提供 new_text（可為空字串）')
+  const doc = await getEntity(db, 'documents', id, ownerId)
+  if (!doc) throw bad('找不到這份文件', 404)
+  if (doc.file_id) throw bad('這份文件由上傳檔案抽出，不能用工具修改；請另存一份新文件')
+  const base = String(doc.content || '')
+  const n = base.split(a.old_text).length - 1
+  if (!n) throw bad('文件中找不到 old_text。請先用 docs__read 讀取原文，逐字複製要改的片段（含空白與標點）再試。')
+  if (n > 1 && a.replace_all !== true) throw bad(`old_text 在文件中出現 ${n} 次；請多帶一些前後文讓它唯一，或設 replace_all=true。`)
+  const next = a.replace_all === true ? base.split(a.old_text).join(a.new_text) : base.replace(a.old_text, () => a.new_text)
+  if (next.length > MAX_SAVE_CHARS * 4) throw bad('修改後文件過長')
+  const item = await updateEntity(db, 'documents', id, { content: next }, ownerId)
+  return {
+    content: out({ ok: true, action: 'edited', id: item.id, title: item.title, replaced: a.replace_all === true ? n : 1, chars: next.length }),
+    summary: `已修改文件：${item.title || '（無標題）'}（取代 ${a.replace_all === true ? n : 1} 處）`,
+    action: 'edited',
+    item: docItem(item),
+  }
+}
+
+async function createFolder(db, a, ownerId) {
+  const name = String(a.name || '').trim().slice(0, 200)
+  if (!name) throw bad('請提供資料夾名稱 name')
+  const existing = (await projectList(db, ownerId)).find((p) => String(p.name || '').trim().toLowerCase() === name.toLowerCase())
+  if (existing) {
+    return {
+      content: out({ ok: true, action: 'exists', id: existing.id, name: existing.name, hint: '同名資料夾已存在，直接使用這個 id。' }),
+      summary: `資料夾已存在：${existing.name}`,
+    }
+  }
+  const p = await createEntity(db, 'projects', { name, description: String(a.description || '').slice(0, 2000), instructions: '', data: { source: 'docs_tool' } }, ownerId)
+  return {
+    content: out({ ok: true, action: 'created', id: p.id, name: p.name, hint: '之後用這個 id 當 docs__save 的 project_id。' }),
+    summary: `已建立資料夾：${p.name}`,
+    action: 'folder_created',
+    project: { id: p.id, name: p.name, description: p.description || '', instructions: p.instructions || '', data: p.data || {}, updated_at: p.updated_at },
+  }
+}
+
+async function remove(db, a, ownerId) {
+  const id = String(a.id || '').trim()
+  if (!ID_RE.test(id)) throw bad('文件 id 格式不正確')
+  const doc = await getEntity(db, 'documents', id, ownerId)
+  if (!doc) throw bad('找不到這份文件', 404)
+  await deleteEntity(db, 'documents', id, ownerId)
+  return {
+    content: out({ ok: true, action: 'deleted', id, title: doc.title }),
+    summary: `已刪除文件：${doc.title || '（無標題）'}`,
+    action: 'deleted',
+    deleted_id: id,
   }
 }
 
@@ -316,6 +433,9 @@ export async function callDocTool(db, env = {}, body = {}, ownerId = OWNER) {
     if (fn === 'docs__list') r = await list(db, a, ownerId)
     else if (fn === 'docs__search') r = await search(db, env, a, ownerId)
     else if (fn === 'docs__read') r = await read(db, a, ownerId)
+    else if (fn === 'docs__edit') r = await edit(db, a, ownerId)
+    else if (fn === 'docs__create_folder') r = await createFolder(db, a, ownerId)
+    else if (fn === 'docs__delete') r = await remove(db, a, ownerId)
     else r = await save(db, a, ownerId)
     return { ...base, is_error: false, ...r }
   } catch (err) {

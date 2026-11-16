@@ -46,7 +46,10 @@ function docsContext(snippets) {
 
 // 工具誠實規則（__toolNames 由伺服器在注入 tools 時設定；前端送來的同名欄位會被刪除）
 export const DOCS_ACCESS_RULE = '你可以存取使用者的『文件』（知識庫）：用 docs__list 列出、docs__search 搜尋、docs__read 讀全文、' +
-  'docs__save 儲存（需使用者確認）。不要說你無法存取文件。通常 1～3 次工具呼叫就該足夠，取得需要的內容後立即回答。專案即資料夾。' +
+  'docs__save 新增／整份改寫／改標題／搬資料夾、docs__edit 局部修改、docs__create_folder 建立資料夾、docs__delete 刪除（寫入類需使用者確認）。' +
+  '不要說你無法存取文件或無法建立資料夾。專案即資料夾：使用者要新建資料夾／專案時呼叫 docs__create_folder；' +
+  '要存進不存在的資料夾時，先 docs__create_folder 再用回傳的 id 呼叫 docs__save。' +
+  '使用者說「這個專案」「目前資料夾」時，用系統提示中的目前專案 id。通常 1～3 次工具呼叫就該足夠，取得需要的內容後立即回答。' +
   '不要用相同參數重複呼叫同一個工具。'
 export const TOOLS_EXHAUSTED_RULE = '工具使用次數已用完，請只根據上面已取得的工具結果直接回答使用者，不要再嘗試呼叫工具；' +
   '若結果不足以完整回答，就說明已找到哪些內容、還缺什麼。'
