@@ -29,7 +29,9 @@ export default async (request, context) => {
         resolveProvider: (body, e) => resolveChatProvider(db, body, e),
         loadContext: db ? chatContextLoader(db) : undefined,
         resolveSearch: db ? (e) => resolveWebSearch(db, e) : undefined,
-        resolveTools: db ? (e) => resolveAllTools(db, resolveMcpTools, undefined, e || env) : undefined,
+        resolveTools: db ? async (e) => {
+          try { return await resolveAllTools(db, resolveMcpTools, undefined, e || env) } catch (err) { console.error('tools resolve failed', err && err.message); return [] }
+        } : undefined,
         // 回答在伺服器收齊後寫入（context.waitUntil：回應送出後繼續；仍計入 50 ms CPU）
         saveReply: db ? replySaver((input) => saveServerMessages(db, input)) : undefined,
         waitUntil: context && context.waitUntil ? (p) => context.waitUntil(p) : undefined,
